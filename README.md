@@ -48,6 +48,8 @@ uv run pytest
 
 ## Usage
 
+> **Full guide**: See [docs/BENCHMARKING.md](docs/BENCHMARKING.md) for the complete benchmarking workflow.
+
 ### Bug Injection
 
 The injector finds mutation sites in Python code and applies semantic mutations:
