@@ -1,0 +1,583 @@
+{
+  "repo_path": "/Users/yuan/stylebench/data/original/humanize",
+  "total_mutations": 50,
+  "killed": 50,
+  "survived": 0,
+  "errors": 0,
+  "mutation_score": 1.0,
+  "duration_seconds": 12.731770038604736,
+  "results": [
+    {
+      "site_id": 0,
+      "mutation_type": "plus_one",
+      "file_path": "src/humanize/_version.py",
+      "line_number": 32,
+      "original_text": "0",
+      "mutated_text": "1",
+      "killed": true,
+      "test_output": "",
+      "duration_seconds": 0.25580501556396484
+    },
+    {
+      "site_id": 1,
+      "mutation_type": "minus_one",
+      "file_path": "src/humanize/_version.py",
+      "line_number": 32,
+      "original_text": "0",
+      "mutated_text": "-1",
+      "killed": true,
+      "test_output": "",
+      "duration_seconds": 0.25408005714416504
+    },
+    {
+      "site_id": 2,
+      "mutation_type": "plus_one",
+      "file_path": "src/humanize/_version.py",
+      "line_number": 32,
+      "original_text": "1",
+      "mutated_text": "2",
+      "killed": true,
+      "test_output": "",
+      "duration_seconds": 0.25164794921875
+    },
+    {
+      "site_id": 3,
+      "mutation_type": "minus_one",
+      "file_path": "src/humanize/_version.py",
+      "line_number": 32,
+      "original_text": "1",
+      "mutated_text": "0",
+      "killed": true,
+      "test_output": "",
+      "duration_seconds": 0.25214481353759766
+    },
+    {
+      "site_id": 0,
+      "mutation_type": "plus_one",
+      "file_path": "src/humanize/filesize.py",
+      "line_number": 87,
+      "original_text": "1024",
+      "mutated_text": "1025",
+      "killed": true,
+      "test_output": "",
+      "duration_seconds": 0.2422640323638916
+    },
+    {
+      "site_id": 1,
+      "mutation_type": "minus_one",
+      "file_path": "src/humanize/filesize.py",
+      "line_number": 87,
+      "original_text": "1024",
+      "mutated_text": "1023",
+      "killed": true,
+      "test_output": "",
+      "duration_seconds": 0.24660921096801758
+    },
+    {
+      "site_id": 2,
+      "mutation_type": "and_or",
+      "file_path": "src/humanize/filesize.py",
+      "line_number": 87,
+      "original_text": "or",
+      "mutated_text": "and",
+      "killed": true,
+      "test_output": "",
+      "duration_seconds": 0.24138593673706055
+    },
+    {
+      "site_id": 3,
+      "mutation_type": "plus_one",
+      "file_path": "src/humanize/filesize.py",
+      "line_number": 87,
+      "original_text": "1000",
+      "mutated_text": "1001",
+      "killed": true,
+      "test_output": "",
+      "duration_seconds": 0.23701190948486328
+    },
+    {
+      "site_id": 4,
+      "mutation_type": "minus_one",
+      "file_path": "src/humanize/filesize.py",
+      "line_number": 87,
+      "original_text": "1000",
+      "mutated_text": "999",
+      "killed": true,
+      "test_output": "",
+      "duration_seconds": 0.25306200981140137
+    },
+    {
+      "site_id": 5,
+      "mutation_type": "and_or",
+      "file_path": "src/humanize/filesize.py",
+      "line_number": 91,
+      "original_text": "and",
+      "mutated_text": "or",
+      "killed": true,
+      "test_output": "",
+      "duration_seconds": 0.23515892028808594
+    },
+    {
+      "site_id": 6,
+      "mutation_type": "eq_ne",
+      "file_path": "src/humanize/filesize.py",
+      "line_number": 91,
+      "original_text": "==",
+      "mutated_text": "!=",
+      "killed": true,
+      "test_output": "",
+      "duration_seconds": 0.23063302040100098
+    },
+    {
+      "site_id": 7,
+      "mutation_type": "plus_one",
+      "file_path": "src/humanize/filesize.py",
+      "line_number": 91,
+      "original_text": "1",
+      "mutated_text": "2",
+      "killed": true,
+      "test_output": "",
+      "duration_seconds": 0.23664426803588867
+    },
+    {
+      "site_id": 8,
+      "mutation_type": "minus_one",
+      "file_path": "src/humanize/filesize.py",
+      "line_number": 91,
+      "original_text": "1",
+      "mutated_text": "0",
+      "killed": true,
+      "test_output": "",
+      "duration_seconds": 0.24776601791381836
+    },
+    {
+      "site_id": 9,
+      "mutation_type": "lt_gt",
+      "file_path": "src/humanize/filesize.py",
+      "line_number": 94,
+      "original_text": "<",
+      "mutated_text": ">",
+      "killed": true,
+      "test_output": "",
+      "duration_seconds": 0.24678993225097656
+    },
+    {
+      "site_id": 10,
+      "mutation_type": "plus_one",
+      "file_path": "src/humanize/filesize.py",
+      "line_number": 98,
+      "original_text": "1",
+      "mutated_text": "2",
+      "killed": true,
+      "test_output": "",
+      "duration_seconds": 0.2481689453125
+    },
+    {
+      "site_id": 11,
+      "mutation_type": "minus_one",
+      "file_path": "src/humanize/filesize.py",
+      "line_number": 98,
+      "original_text": "1",
+      "mutated_text": "0",
+      "killed": true,
+      "test_output": "",
+      "duration_seconds": 0.24576997756958008
+    },
+    {
+      "site_id": 0,
+      "mutation_type": "and_or",
+      "file_path": "src/humanize/i18n.py",
+      "line_number": 41,
+      "original_text": "and",
+      "mutated_text": "or",
+      "killed": true,
+      "test_output": "",
+      "duration_seconds": 0.2531168460845947
+    },
+    {
+      "site_id": 1,
+      "mutation_type": "and_or",
+      "file_path": "src/humanize/i18n.py",
+      "line_number": 76,
+      "original_text": "or",
+      "mutated_text": "and",
+      "killed": true,
+      "test_output": "",
+      "duration_seconds": 0.26139307022094727
+    },
+    {
+      "site_id": 0,
+      "mutation_type": "eq_ne",
+      "file_path": "src/humanize/lists.py",
+      "line_number": 31,
+      "original_text": "==",
+      "mutated_text": "!=",
+      "killed": true,
+      "test_output": "",
+      "duration_seconds": 0.2566390037536621
+    },
+    {
+      "site_id": 1,
+      "mutation_type": "plus_one",
+      "file_path": "src/humanize/lists.py",
+      "line_number": 31,
+      "original_text": "1",
+      "mutated_text": "2",
+      "killed": true,
+      "test_output": "",
+      "duration_seconds": 0.2546100616455078
+    },
+    {
+      "site_id": 2,
+      "mutation_type": "minus_one",
+      "file_path": "src/humanize/lists.py",
+      "line_number": 31,
+      "original_text": "1",
+      "mutated_text": "0",
+      "killed": true,
+      "test_output": "",
+      "duration_seconds": 0.2491459846496582
+    },
+    {
+      "site_id": 3,
+      "mutation_type": "plus_one",
+      "file_path": "src/humanize/lists.py",
+      "line_number": 32,
+      "original_text": "0",
+      "mutated_text": "1",
+      "killed": true,
+      "test_output": "",
+      "duration_seconds": 0.25249600410461426
+    },
+    {
+      "site_id": 4,
+      "mutation_type": "minus_one",
+      "file_path": "src/humanize/lists.py",
+      "line_number": 32,
+      "original_text": "0",
+      "mutated_text": "-1",
+      "killed": true,
+      "test_output": "",
+      "duration_seconds": 0.2519669532775879
+    },
+    {
+      "site_id": 5,
+      "mutation_type": "eq_ne",
+      "file_path": "src/humanize/lists.py",
+      "line_number": 33,
+      "original_text": "==",
+      "mutated_text": "!=",
+      "killed": true,
+      "test_output": "",
+      "duration_seconds": 0.2544431686401367
+    },
+    {
+      "site_id": 6,
+      "mutation_type": "plus_one",
+      "file_path": "src/humanize/lists.py",
+      "line_number": 33,
+      "original_text": "2",
+      "mutated_text": "3",
+      "killed": true,
+      "test_output": "",
+      "duration_seconds": 0.2522618770599365
+    },
+    {
+      "site_id": 7,
+      "mutation_type": "minus_one",
+      "file_path": "src/humanize/lists.py",
+      "line_number": 33,
+      "original_text": "2",
+      "mutated_text": "1",
+      "killed": true,
+      "test_output": "",
+      "duration_seconds": 0.25087785720825195
+    },
+    {
+      "site_id": 8,
+      "mutation_type": "plus_one",
+      "file_path": "src/humanize/lists.py",
+      "line_number": 34,
+      "original_text": "0",
+      "mutated_text": "1",
+      "killed": true,
+      "test_output": "",
+      "duration_seconds": 0.2511889934539795
+    },
+    {
+      "site_id": 9,
+      "mutation_type": "minus_one",
+      "file_path": "src/humanize/lists.py",
+      "line_number": 34,
+      "original_text": "0",
+      "mutated_text": "-1",
+      "killed": true,
+      "test_output": "",
+      "duration_seconds": 0.25365710258483887
+    },
+    {
+      "site_id": 10,
+      "mutation_type": "plus_one",
+      "file_path": "src/humanize/lists.py",
+      "line_number": 34,
+      "original_text": "1",
+      "mutated_text": "2",
+      "killed": true,
+      "test_output": "",
+      "duration_seconds": 0.2514791488647461
+    },
+    {
+      "site_id": 11,
+      "mutation_type": "minus_one",
+      "file_path": "src/humanize/lists.py",
+      "line_number": 34,
+      "original_text": "1",
+      "mutated_text": "0",
+      "killed": true,
+      "test_output": "",
+      "duration_seconds": 0.25197601318359375
+    },
+    {
+      "site_id": 12,
+      "mutation_type": "plus_one",
+      "file_path": "src/humanize/lists.py",
+      "line_number": 36,
+      "original_text": "1",
+      "mutated_text": "2",
+      "killed": true,
+      "test_output": "",
+      "duration_seconds": 0.2509162425994873
+    },
+    {
+      "site_id": 13,
+      "mutation_type": "minus_one",
+      "file_path": "src/humanize/lists.py",
+      "line_number": 36,
+      "original_text": "1",
+      "mutated_text": "0",
+      "killed": true,
+      "test_output": "",
+      "duration_seconds": 0.2500460147857666
+    },
+    {
+      "site_id": 14,
+      "mutation_type": "plus_one",
+      "file_path": "src/humanize/lists.py",
+      "line_number": 36,
+      "original_text": "1",
+      "mutated_text": "2",
+      "killed": true,
+      "test_output": "",
+      "duration_seconds": 0.253324031829834
+    },
+    {
+      "site_id": 15,
+      "mutation_type": "minus_one",
+      "file_path": "src/humanize/lists.py",
+      "line_number": 36,
+      "original_text": "1",
+      "mutated_text": "0",
+      "killed": true,
+      "test_output": "",
+      "duration_seconds": 0.25950002670288086
+    },
+    {
+      "site_id": 0,
+      "mutation_type": "and_or",
+      "file_path": "src/humanize/number.py",
+      "line_number": 27,
+      "original_text": "and",
+      "mutated_text": "or",
+      "killed": true,
+      "test_output": "",
+      "duration_seconds": 0.25145697593688965
+    },
+    {
+      "site_id": 1,
+      "mutation_type": "lt_gt",
+      "file_path": "src/humanize/number.py",
+      "line_number": 27,
+      "original_text": "<",
+      "mutated_text": ">",
+      "killed": true,
+      "test_output": "",
+      "duration_seconds": 0.26079487800598145
+    },
+    {
+      "site_id": 2,
+      "mutation_type": "plus_one",
+      "file_path": "src/humanize/number.py",
+      "line_number": 27,
+      "original_text": "0",
+      "mutated_text": "1",
+      "killed": true,
+      "test_output": "",
+      "duration_seconds": 0.25321316719055176
+    },
+    {
+      "site_id": 3,
+      "mutation_type": "minus_one",
+      "file_path": "src/humanize/number.py",
+      "line_number": 27,
+      "original_text": "0",
+      "mutated_text": "-1",
+      "killed": true,
+      "test_output": "",
+      "duration_seconds": 0.2542600631713867
+    },
+    {
+      "site_id": 4,
+      "mutation_type": "and_or",
+      "file_path": "src/humanize/number.py",
+      "line_number": 29,
+      "original_text": "and",
+      "mutated_text": "or",
+      "killed": true,
+      "test_output": "",
+      "duration_seconds": 0.26285815238952637
+    },
+    {
+      "site_id": 5,
+      "mutation_type": "lt_gt",
+      "file_path": "src/humanize/number.py",
+      "line_number": 29,
+      "original_text": ">",
+      "mutated_text": "<",
+      "killed": true,
+      "test_output": "",
+      "duration_seconds": 0.25861310958862305
+    },
+    {
+      "site_id": 6,
+      "mutation_type": "plus_one",
+      "file_path": "src/humanize/number.py",
+      "line_number": 29,
+      "original_text": "0",
+      "mutated_text": "1",
+      "killed": true,
+      "test_output": "",
+      "duration_seconds": 0.25652503967285156
+    },
+    {
+      "site_id": 7,
+      "mutation_type": "minus_one",
+      "file_path": "src/humanize/number.py",
+      "line_number": 29,
+      "original_text": "0",
+      "mutated_text": "-1",
+      "killed": true,
+      "test_output": "",
+      "duration_seconds": 0.2593109607696533
+    },
+    {
+      "site_id": 8,
+      "mutation_type": "eq_ne",
+      "file_path": "src/humanize/number.py",
+      "line_number": 79,
+      "original_text": "==",
+      "mutated_text": "!=",
+      "killed": true,
+      "test_output": "",
+      "duration_seconds": 0.2603771686553955
+    },
+    {
+      "site_id": 9,
+      "mutation_type": "plus_one",
+      "file_path": "src/humanize/number.py",
+      "line_number": 105,
+      "original_text": "100",
+      "mutated_text": "101",
+      "killed": true,
+      "test_output": "",
+      "duration_seconds": 0.26154017448425293
+    },
+    {
+      "site_id": 10,
+      "mutation_type": "minus_one",
+      "file_path": "src/humanize/number.py",
+      "line_number": 105,
+      "original_text": "100",
+      "mutated_text": "99",
+      "killed": true,
+      "test_output": "",
+      "duration_seconds": 0.2670562267303467
+    },
+    {
+      "site_id": 11,
+      "mutation_type": "plus_one",
+      "file_path": "src/humanize/number.py",
+      "line_number": 105,
+      "original_text": "11",
+      "mutated_text": "12",
+      "killed": true,
+      "test_output": "",
+      "duration_seconds": 0.2562251091003418
+    },
+    {
+      "site_id": 12,
+      "mutation_type": "minus_one",
+      "file_path": "src/humanize/number.py",
+      "line_number": 105,
+      "original_text": "11",
+      "mutated_text": "10",
+      "killed": true,
+      "test_output": "",
+      "duration_seconds": 0.257659912109375
+    },
+    {
+      "site_id": 13,
+      "mutation_type": "plus_one",
+      "file_path": "src/humanize/number.py",
+      "line_number": 105,
+      "original_text": "12",
+      "mutated_text": "13",
+      "killed": true,
+      "test_output": "",
+      "duration_seconds": 0.26058101654052734
+    },
+    {
+      "site_id": 14,
+      "mutation_type": "minus_one",
+      "file_path": "src/humanize/number.py",
+      "line_number": 105,
+      "original_text": "12",
+      "mutated_text": "11",
+      "killed": true,
+      "test_output": "",
+      "duration_seconds": 0.2524752616882324
+    },
+    {
+      "site_id": 15,
+      "mutation_type": "plus_one",
+      "file_path": "src/humanize/number.py",
+      "line_number": 105,
+      "original_text": "13",
+      "mutated_text": "14",
+      "killed": true,
+      "test_output": "",
+      "duration_seconds": 0.25209975242614746
+    }
+  ],
+  "by_type": {
+    "plus_one": {
+      "killed": 19,
+      "survived": 0
+    },
+    "minus_one": {
+      "killed": 18,
+      "survived": 0
+    },
+    "and_or": {
+      "killed": 6,
+      "survived": 0
+    },
+    "eq_ne": {
+      "killed": 4,
+      "survived": 0
+    },
+    "lt_gt": {
+      "killed": 3,
+      "survived": 0
+    }
+  }
+}

@@ -39,3 +39,7 @@ htmlcov/
 # OS
 .DS_Store
 Thumbs.db
+
+# Data directories (cloned repos, large files)
+data/original/
+data/transformed/
