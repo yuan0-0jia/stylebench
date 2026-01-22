@@ -1418,7 +1418,8 @@ class BadNamingTransformer(Transformer):
     """
     Transform descriptive variable names to single-letter names.
 
-    Only transforms locally-defined variables within functions.
+    Only transforms locally-defined variables within functions, scoped to
+    the function where they are defined.
     """
 
     def __init__(self, rename_parameters: bool = False):
@@ -1438,52 +1439,6 @@ class BadNamingTransformer(Transformer):
                     return name
         raise ValueError("Ran out of short names")
 
-    def _collect_local_variables(
-        self, node: Node, source_bytes: bytes, ctx: CodeContext
-    ) -> tuple[set[str], list[tuple[str, int, int]]]:
-        """Collect local variable names defined within functions."""
-        defined_names: set[str] = set()
-        all_identifiers: list[tuple[str, int, int]] = []
-
-        def collect_definitions(n: Node, in_function: bool = False):
-            if n.type in ("function_definition", "lambda"):
-                in_function = True
-
-                if self.rename_parameters and n.type == "function_definition":
-                    params = n.child_by_field_name("parameters")
-                    if params:
-                        for child in params.children:
-                            if child.type == "identifier":
-                                name = source_bytes[child.start_byte:child.end_byte].decode('utf-8')
-                                defined_names.add(name)
-
-            if in_function:
-                if n.type == "assignment":
-                    left = n.child_by_field_name("left")
-                    if left and left.type == "identifier":
-                        name = source_bytes[left.start_byte:left.end_byte].decode('utf-8')
-                        defined_names.add(name)
-
-                elif n.type == "for_statement":
-                    left = n.child_by_field_name("left")
-                    if left and left.type == "identifier":
-                        name = source_bytes[left.start_byte:left.end_byte].decode('utf-8')
-                        defined_names.add(name)
-
-            for child in n.children:
-                collect_definitions(child, in_function)
-
-        def collect_all_identifiers(n: Node):
-            if n.type == "identifier":
-                name = source_bytes[n.start_byte:n.end_byte].decode('utf-8')
-                all_identifiers.append((name, n.start_byte, n.end_byte))
-            for child in n.children:
-                collect_all_identifiers(child)
-
-        collect_definitions(node)
-        collect_all_identifiers(node)
-        return defined_names, all_identifiers
-
     def _is_transformable(self, name: str, ctx: CodeContext) -> bool:
         """Check if a name should be transformed."""
         if name in PYTHON_BUILTINS:
@@ -1498,6 +1453,239 @@ class BadNamingTransformer(Transformer):
             return False
         return True
 
+    def _collect_function_scopes(
+        self, node: Node, source_bytes: bytes, ctx: CodeContext
+    ) -> list[dict]:
+        """Collect local variable scopes for each function.
+
+        Returns a list of dicts, each containing:
+        - 'start': function start byte
+        - 'end': function end byte
+        - 'defined_names': set of locally defined variable names
+        - 'identifiers': list of (name, start, end) for identifiers in this function
+        - 'mappings': dict of old_name -> new_name for this function
+        """
+        scopes = []
+
+        def process_function(func_node: Node, parent_new_names: set[str] | None = None):
+            if parent_new_names is None:
+                parent_new_names = set()
+            func_start = func_node.start_byte
+            func_end = func_node.end_byte
+            defined_names: set[str] = set()
+            identifiers: list[tuple[str, int, int]] = []
+
+            # Collect parameter names (to either rename or exclude)
+            param_names: set[str] = set()
+            if func_node.type == "function_definition":
+                params = func_node.child_by_field_name("parameters")
+                if params:
+                    for child in params.children:
+                        # Handle different parameter types
+                        param_name = None
+                        if child.type == "identifier":
+                            param_name = source_bytes[child.start_byte:child.end_byte]
+                            param_name = param_name.decode('utf-8')
+                        elif child.type in (
+                            "typed_parameter", "typed_default_parameter",
+                            "default_parameter"
+                        ):
+                            # Get the identifier child (parameter name)
+                            for subchild in child.children:
+                                if subchild.type == "identifier":
+                                    param_name = source_bytes[subchild.start_byte:subchild.end_byte]
+                                    param_name = param_name.decode('utf-8')
+                                    break
+                        if param_name:
+                            param_names.add(param_name)
+                            if self.rename_parameters and self._is_transformable(param_name, ctx):
+                                defined_names.add(param_name)
+
+            # Collect local variable definitions within this function
+            def collect_local_defs(n: Node, depth: int = 0):
+                # Don't recurse into nested functions for definitions
+                if depth > 0 and n.type == "function_definition":
+                    return
+
+                # Don't collect definitions from class bodies (these are class attributes)
+                if n.type == "class_definition":
+                    return
+
+                if n.type == "assignment":
+                    left = n.child_by_field_name("left")
+                    if left and left.type == "identifier":
+                        name = source_bytes[left.start_byte:left.end_byte]
+                        name = name.decode('utf-8')
+                        # Skip if it's a parameter being reassigned
+                        if name not in param_names and self._is_transformable(name, ctx):
+                            defined_names.add(name)
+
+                elif n.type == "for_statement":
+                    left = n.child_by_field_name("left")
+                    if left and left.type == "identifier":
+                        name = source_bytes[left.start_byte:left.end_byte]
+                        name = name.decode('utf-8')
+                        # Skip if it shadows a parameter
+                        if name not in param_names and self._is_transformable(name, ctx):
+                            defined_names.add(name)
+
+                for child in n.children:
+                    new_depth = depth + 1 if n.type == "function_definition" else depth
+                    collect_local_defs(child, new_depth)
+
+            # Start collecting from the function body
+            body = func_node.child_by_field_name("body")
+            if body:
+                collect_local_defs(body)
+
+            # Collect names defined in a nested function (for shadowing detection)
+            def get_nested_func_locals(func_node: Node) -> set[str]:
+                """Get names defined locally in a nested function."""
+                local_names: set[str] = set()
+
+                # Get parameter names
+                params = func_node.child_by_field_name("parameters")
+                if params:
+                    for child in params.children:
+                        if child.type == "identifier":
+                            name = source_bytes[child.start_byte:child.end_byte]
+                            local_names.add(name.decode('utf-8'))
+                        elif child.type in (
+                            "typed_parameter", "typed_default_parameter",
+                            "default_parameter"
+                        ):
+                            for subchild in child.children:
+                                if subchild.type == "identifier":
+                                    name = source_bytes[subchild.start_byte:subchild.end_byte]
+                                    local_names.add(name.decode('utf-8'))
+                                    break
+
+                # Get local variable definitions
+                def collect_local(n: Node, in_nested: bool = False):
+                    # Don't collect from doubly-nested functions
+                    if in_nested and n.type == "function_definition":
+                        return
+                    if n.type == "assignment":
+                        left = n.child_by_field_name("left")
+                        if left and left.type == "identifier":
+                            name = source_bytes[left.start_byte:left.end_byte]
+                            local_names.add(name.decode('utf-8'))
+                    elif n.type == "for_statement":
+                        left = n.child_by_field_name("left")
+                        if left and left.type == "identifier":
+                            name = source_bytes[left.start_byte:left.end_byte]
+                            local_names.add(name.decode('utf-8'))
+                    for child in n.children:
+                        new_nested = in_nested or n.type == "function_definition"
+                        collect_local(child, new_nested)
+
+                body = func_node.child_by_field_name("body")
+                if body:
+                    collect_local(body)
+                return local_names
+
+            # Collect all identifiers (including in nested functions for closures)
+            def collect_identifiers(n: Node, shadowed_names: set[str] | None = None):
+                if shadowed_names is None:
+                    shadowed_names = set()
+
+                # When entering a nested function, add its local names to shadowed set
+                if n.type == "function_definition" and n != func_node:
+                    nested_locals = get_nested_func_locals(n)
+                    new_shadowed = shadowed_names | nested_locals
+                    for child in n.children:
+                        collect_identifiers(child, new_shadowed)
+                    return
+
+                if n.type == "identifier":
+                    parent = n.parent
+                    # Skip if this identifier is an attribute access (obj.attr)
+                    if parent and parent.type == "attribute":
+                        attr_node = parent.child_by_field_name("attribute")
+                        if attr_node and attr_node.id == n.id:
+                            return
+
+                    # Skip if this identifier is a keyword argument name
+                    if parent and parent.type == "keyword_argument":
+                        name_node = parent.child_by_field_name("name")
+                        if name_node and name_node.id == n.id:
+                            return
+
+                    name = source_bytes[n.start_byte:n.end_byte].decode('utf-8')
+                    # Include if it's a defined name AND not shadowed by nested func
+                    if name in defined_names and name not in shadowed_names:
+                        identifiers.append((name, n.start_byte, n.end_byte))
+
+                for child in n.children:
+                    collect_identifiers(child, shadowed_names)
+
+            collect_identifiers(func_node, set())
+
+            if defined_names:
+                # Collect all names defined in nested functions (to avoid collisions)
+                nested_names: set[str] = set()
+
+                def collect_nested_names(n: Node, in_nested: bool = False):
+                    if n.type == "function_definition" and n != func_node:
+                        in_nested = True
+                    if in_nested:
+                        if n.type == "assignment":
+                            left = n.child_by_field_name("left")
+                            if left and left.type == "identifier":
+                                name = source_bytes[left.start_byte:left.end_byte]
+                                nested_names.add(name.decode('utf-8'))
+                        elif n.type == "for_statement":
+                            left = n.child_by_field_name("left")
+                            if left and left.type == "identifier":
+                                name = source_bytes[left.start_byte:left.end_byte]
+                                nested_names.add(name.decode('utf-8'))
+                    for child in n.children:
+                        collect_nested_names(child, in_nested)
+
+                collect_nested_names(func_node)
+
+                # Build mappings - avoid nested function names to prevent shadowing
+                used = PYTHON_BUILTINS | ctx.imported_names | ctx.local_definitions
+                used |= nested_names  # Avoid names used in nested functions
+                used |= parent_new_names  # Avoid names already used by parent scopes
+                mappings = {}
+                for name in sorted(defined_names):
+                    new_name = self._get_next_name(used)
+                    mappings[name] = new_name
+                    used.add(new_name)
+
+                scope = {
+                    'start': func_start,
+                    'end': func_end,
+                    'defined_names': defined_names,
+                    'identifiers': identifiers,
+                    'mappings': mappings,
+                }
+                scopes.append(scope)
+                return scope
+            return None
+
+        # Find all function definitions and process them hierarchically
+        def find_functions(n: Node, parent_new_names: set[str] | None = None):
+            if parent_new_names is None:
+                parent_new_names = set()
+
+            if n.type == "function_definition":
+                # Process this function and get its mappings
+                scope = process_function(n, parent_new_names)
+                if scope:
+                    # Pass this function's new names to nested functions
+                    new_names = parent_new_names | set(scope['mappings'].values())
+                    for child in n.children:
+                        find_functions(child, new_names)
+                return
+
+            for child in n.children:
+                find_functions(child, parent_new_names)
+
+        find_functions(node)
+        return scopes
+
     def transform(self, source_code: str) -> TransformResult:
         """Transform local variable names to single-letter names."""
         source_bytes = source_code.encode('utf-8')
@@ -1506,12 +1694,9 @@ class BadNamingTransformer(Transformer):
         analyzer = NameAnalyzer(source_bytes)
         ctx = analyzer.analyze(root)
 
-        defined_names, all_identifiers = self._collect_local_variables(root, source_bytes, ctx)
+        scopes = self._collect_function_scopes(root, source_bytes, ctx)
 
-        # Filter to transformable names
-        transformable = {n for n in defined_names if self._is_transformable(n, ctx)}
-
-        if not transformable:
+        if not scopes:
             return TransformResult(
                 original_code=source_code,
                 transformed_code=source_code,
@@ -1519,19 +1704,14 @@ class BadNamingTransformer(Transformer):
                 details=["No local variables found to transform"],
             )
 
-        # Build mappings
-        used_names = PYTHON_BUILTINS | ctx.imported_names
-        self.name_mappings = {}
-        for name in sorted(transformable):
-            new_name = self._get_next_name(used_names)
-            self.name_mappings[name] = new_name
-            used_names.add(new_name)
-
-        # Apply replacements
+        # Collect all replacements from all scopes
         replacements = []
-        for name, start, end in all_identifiers:
-            if name in self.name_mappings:
-                replacements.append((start, end, name, self.name_mappings[name]))
+        self.name_mappings = {}
+        for scope in scopes:
+            self.name_mappings.update(scope['mappings'])
+            for name, start, end in scope['identifiers']:
+                if name in scope['mappings']:
+                    replacements.append((start, end, name, scope['mappings'][name]))
 
         replacements.sort(key=lambda x: x[0], reverse=True)
 
@@ -1541,14 +1721,20 @@ class BadNamingTransformer(Transformer):
             actual = result_bytes[start:end].decode('utf-8')
             if actual != original:
                 continue
-            result_bytes = result_bytes[:start] + transformed.encode('utf-8') + result_bytes[end:]
+            new_bytes = transformed.encode('utf-8')
+            result_bytes = result_bytes[:start] + new_bytes + result_bytes[end:]
             changes_applied += 1
 
         result = result_bytes.decode('utf-8')
 
+        # Count occurrences from replacements
+        name_counts: dict[str, int] = {}
+        for _, _, name, _ in replacements:
+            name_counts[name] = name_counts.get(name, 0) + 1
+
         details = [f"Renamed {len(self.name_mappings)} variables to short names:"]
         for original, transformed in sorted(self.name_mappings.items()):
-            count = sum(1 for n, _, _ in all_identifiers if n == original)
+            count = name_counts.get(original, 0)
             details.append(f"  {original} → {transformed} ({count} occurrences)")
 
         return TransformResult(

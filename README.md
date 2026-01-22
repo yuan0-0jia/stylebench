@@ -111,7 +111,13 @@ transformer.transform_directory('src/', 'output/')
 |-------------|------------|---------|
 | `CamelCaseTransformer` | snake_case → camelCase | `get_user_name` → `getUserName` |
 | `SnakeCaseTransformer` | camelCase → snake_case | `getUserName` → `get_user_name` |
-| `BadNamingTransformer` | Descriptive → single-letter | `user_count` → `a` |
+| `BadNamingTransformer` | Local vars → single-letter | `result = x + y` → `a = x + y` |
+
+**BadNaming transformer details:**
+- Only renames local variables within function scopes
+- Preserves parameters (visible to callers) and class attributes
+- Handles closures: renames outer variables referenced in nested functions
+- Prevents collisions: nested functions avoid parent scope's new names
 
 **Formatting transformer:**
 
@@ -130,13 +136,15 @@ result = transformer.transform(source_code)
 - Detects `**kwargs` functions to preserve caller kwargs
 - Preserves submodule names in attribute chains
 
-**Validation results (CamelCase on target projects):**
+**Validation results on target projects:**
 
-| Project | Original Tests | Pass Rate |
-|---------|---------------|-----------|
-| humanize | 684 | 99.6% |
-| validators | 895 | 98.1% |
-| python-markdown | 1087 | 98.0% |
+| Project | Original | CamelCase | BadNaming |
+|---------|----------|-----------|-----------|
+| humanize | 684 pass | 99.6% | 100% |
+| validators | 878 pass | 98.1% | 100% |
+| python-markdown | 1087 pass | 100% | 100% |
+
+*Note: Pass rates compare transformed code test results to original. Some failures in validators/humanize are pre-existing (missing optional deps).*
 
 ### Mutation Validation
 
