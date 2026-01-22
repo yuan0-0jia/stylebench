@@ -14,17 +14,20 @@ Do coding agents (Claude, GPT-4, Gemini, etc.) perform differently when fixing b
 
 ```
 stylebench/
-├── bugs/             # Bug injection and validation
-│   ├── injector.py   # Tree-sitter based mutation injector
-│   └── validator.py  # Batch mutation testing
-├── transformers/     # Code style transformation tools (planned)
-├── benchmarks/       # Agent harness and evaluation (planned)
+├── bugs/                  # Bug injection and validation
+│   ├── injector.py        # Tree-sitter based mutation injector
+│   └── validator.py       # Batch mutation testing
+├── transformers/          # Code style transformation tools
+│   ├── base.py            # Base transformer class
+│   ├── naming.py          # Naming convention transformers
+│   └── formatting.py      # Code formatting transformer
+├── benchmarks/            # Agent harness and evaluation (planned)
 ├── data/
-│   ├── original/     # Source Python projects (gitignored)
-│   ├── transformed/  # Style-transformed variants
-│   └── results/      # Validation and agent performance data
-├── analysis/         # Statistical analysis and visualization
-└── tests/            # Test suite
+│   ├── original/          # Source Python projects (gitignored)
+│   ├── transformed/       # Style-transformed variants
+│   └── results/           # Validation and agent performance data
+├── analysis/              # Statistical analysis and visualization
+└── tests/                 # Test suite
 ```
 
 ## Setup
@@ -85,6 +88,55 @@ mutated_code = apply_mutation(code, sites[0])
 | `and_or` | `and` ↔ `or` | `a and b` → `a or b` |
 | `plus_one` | `n` → `n+1` | `range(10)` → `range(11)` |
 | `minus_one` | `n` → `n-1` | `range(10)` → `range(9)` |
+
+### Code Style Transformation
+
+Transform code between different naming conventions and formatting styles:
+
+```python
+from transformers import CamelCaseTransformer, SnakeCaseTransformer, BadNamingTransformer
+
+# Transform snake_case to camelCase
+transformer = CamelCaseTransformer(project_packages={'myproject'})
+result = transformer.transform(source_code)
+print(result.transformed)
+
+# Transform a directory
+transformer.transform_directory('src/', 'output/')
+```
+
+**Naming transformers:**
+
+| Transformer | Conversion | Example |
+|-------------|------------|---------|
+| `CamelCaseTransformer` | snake_case → camelCase | `get_user_name` → `getUserName` |
+| `SnakeCaseTransformer` | camelCase → snake_case | `getUserName` → `get_user_name` |
+| `BadNamingTransformer` | Descriptive → single-letter | `user_count` → `a` |
+
+**Formatting transformer:**
+
+```python
+from transformers import FormattingTransformer
+
+# Apply ruff formatting with different profiles
+transformer = FormattingTransformer(profile='compact')  # or 'pep8_strict', 'wide'
+result = transformer.transform(source_code)
+```
+
+**Transformer features:**
+- Two-pass transformation for cross-file consistency
+- Preserves external imports, builtins, and dunder methods
+- Syncs format string placeholders with kwargs
+- Detects `**kwargs` functions to preserve caller kwargs
+- Preserves submodule names in attribute chains
+
+**Validation results (CamelCase on target projects):**
+
+| Project | Original Tests | Pass Rate |
+|---------|---------------|-----------|
+| humanize | 684 | 99.6% |
+| validators | 895 | 98.1% |
+| python-markdown | 1087 | 98.0% |
 
 ### Mutation Validation
 
