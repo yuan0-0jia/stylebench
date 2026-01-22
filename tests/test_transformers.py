@@ -1,6 +1,5 @@
 """Tests for code style transformers."""
 
-import pytest
 
 from transformers import (
     BadNamingTransformer,

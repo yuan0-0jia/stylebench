@@ -20,7 +20,6 @@ from tree_sitter import Node
 
 from .base import Transformer, TransformResult
 
-
 # Python built-in names that should never be transformed
 PYTHON_BUILTINS = {
     # Built-in functions
@@ -141,8 +140,8 @@ class CodeContext:
     # These are the module names in import statements like 'from .crypto_addresses import X'
     module_path_positions: set[tuple[int, int]] = field(default_factory=set)
 
-    # Positions of keyword argument names in calls to external functions (should NOT be transformed)
-    # E.g., 'strict_parsing' in parse_qs(query, strict_parsing=True) where parse_qs is from urllib.parse
+    # Positions of keyword argument names in calls to external functions
+    # (should NOT be transformed). E.g., 'strict_parsing' in parse_qs(strict_parsing=True)
     external_kwarg_positions: set[tuple[int, int]] = field(default_factory=set)
 
     # Format string placeholders that should be transformed
@@ -191,8 +190,8 @@ class NameAnalyzer:
         ctx.project_packages = self.project_packages
         self._collect_imports(root, ctx)
         self._collect_local_definitions(root, ctx)
-        self._collect_kwargs_functions(root, ctx)  # Must come before _collect_external_kwargs
-        self._collect_external_object_vars(root, ctx)  # Must come before _collect_attribute_accesses
+        self._collect_kwargs_functions(root, ctx)  # Before _collect_external_kwargs
+        self._collect_external_object_vars(root, ctx)  # Before _collect_attribute_accesses
         self._collect_attribute_accesses(root, ctx)
         self._collect_external_kwargs(root, ctx)
         self._collect_format_strings(root, ctx)
@@ -506,40 +505,50 @@ class NameAnalyzer:
                         # Don't mark in attribute_positions - allow transformation
                     # Allow transformation for project package attribute access
                     elif obj_text in ctx.project_packages:
-                        # BUT if this attribute is itself accessed (e.g., markdown.extensions.submod),
-                        # it's likely a submodule name that must match filesystem - don't transform
+                        # If accessed as object (e.g., markdown.extensions.submod),
+                        # it's a submodule that must match filesystem - don't transform
                         if is_accessed_as_object(node):
-                            ctx.attribute_positions.add((attr_node.start_byte, attr_node.end_byte))
+                            pos = (attr_node.start_byte, attr_node.end_byte)
+                            ctx.attribute_positions.add(pos)
                         # Otherwise, allow transformation (e.g., markdown.some_func())
-                    # Allow transformation for project module aliases (e.g., 'time' from 'from humanize import time')
+                    # Allow for project module aliases (from humanize import time)
                     elif obj_text in ctx.project_module_aliases:
                         # Same submodule check
                         if is_accessed_as_object(node):
-                            ctx.attribute_positions.add((attr_node.start_byte, attr_node.end_byte))
+                            pos = (attr_node.start_byte, attr_node.end_byte)
+                            ctx.attribute_positions.add(pos)
                     # Mark external object attribute access as non-transformable
                     # (e.g., options.output_format where options = parser.parse_args())
                     elif obj_text in ctx.external_object_vars:
-                        ctx.attribute_positions.add((attr_node.start_byte, attr_node.end_byte))
+                        pos = (attr_node.start_byte, attr_node.end_byte)
+                        ctx.attribute_positions.add(pos)
                         # Also mark as external module access (never transform)
-                        ctx.external_module_attribute_positions.add((attr_node.start_byte, attr_node.end_byte))
+                        ctx.external_module_attribute_positions.add(pos)
                     # For chained access, check if root is a project package or alias
                     elif obj_node.type == "attribute":
                         root_name = get_root_name(obj_node)
-                        if root_name in ctx.project_packages or root_name in ctx.project_module_aliases:
-                            # If this attribute is accessed as an object, it's likely a submodule
+                        is_project = (root_name in ctx.project_packages
+                                      or root_name in ctx.project_module_aliases)
+                        if is_project:
+                            # If accessed as object, it's likely a submodule
                             if is_accessed_as_object(node):
-                                ctx.attribute_positions.add((attr_node.start_byte, attr_node.end_byte))
+                                pos = (attr_node.start_byte, attr_node.end_byte)
+                                ctx.attribute_positions.add(pos)
                             # Otherwise allow transformation
                         else:
-                            ctx.attribute_positions.add((attr_node.start_byte, attr_node.end_byte))
-                            # If root is an external module or external object, mark as never transform
-                            if (root_name in ctx.imported_names or root_name in ctx.module_names
-                                    or root_name in ctx.external_object_vars):
-                                ctx.external_module_attribute_positions.add((attr_node.start_byte, attr_node.end_byte))
+                            pos = (attr_node.start_byte, attr_node.end_byte)
+                            ctx.attribute_positions.add(pos)
+                            # If external module or object, mark as never transform
+                            is_external = (root_name in ctx.imported_names
+                                           or root_name in ctx.module_names
+                                           or root_name in ctx.external_object_vars)
+                            if is_external:
+                                ctx.external_module_attribute_positions.add(pos)
                     # Direct external module attribute access (e.g., importlib.util)
                     elif obj_text in ctx.imported_names or obj_text in ctx.module_names:
-                        ctx.attribute_positions.add((attr_node.start_byte, attr_node.end_byte))
-                        ctx.external_module_attribute_positions.add((attr_node.start_byte, attr_node.end_byte))
+                        pos = (attr_node.start_byte, attr_node.end_byte)
+                        ctx.attribute_positions.add(pos)
+                        ctx.external_module_attribute_positions.add(pos)
                     # All other attribute accesses are non-transformable
                     else:
                         ctx.attribute_positions.add((attr_node.start_byte, attr_node.end_byte))
@@ -724,7 +733,8 @@ class NameAnalyzer:
 
                     # Verify the positions are correct by checking the source
                     try:
-                        actual = self.source_bytes[placeholder_start:placeholder_end].decode('utf-8')
+                        src_slice = self.source_bytes[placeholder_start:placeholder_end]
+                        actual = src_slice.decode('utf-8')
                         if actual == placeholder_name:
                             ctx.format_string_placeholders.append(
                                 (placeholder_start, placeholder_end, placeholder_name)
@@ -923,7 +933,7 @@ class NameAnalyzer:
                 # Strip quotes
                 inner = text[1:-1] if len(text) >= 2 else text
                 # Skip if it contains spaces (probably not a param name)
-                if inner and not " " in inner.strip():
+                if inner and " " not in inner.strip():
                     ctx.parametrize_strings.append((n.start_byte, n.end_byte, text))
                 elif "," in inner:
                     # Could be "param1, param2" format
@@ -968,8 +978,12 @@ class NameAnalyzer:
 class CamelCaseTransformer(Transformer):
     """Transform snake_case identifiers to camelCase."""
 
-    def __init__(self, project_packages: set[str] | None = None, project_definitions: set[str] | None = None,
-                 project_kwargs_functions: set[str] | None = None):
+    def __init__(
+        self,
+        project_packages: set[str] | None = None,
+        project_definitions: set[str] | None = None,
+        project_kwargs_functions: set[str] | None = None,
+    ):
         super().__init__()
         self.name_mappings: dict[str, str] = {}
         self.project_packages = project_packages or set()
@@ -1027,7 +1041,7 @@ class CamelCaseTransformer(Transformer):
             if name not in self.project_definitions:
                 return False
 
-        # Don't transform module path identifiers (e.g., 'crypto_addresses' in 'from .crypto_addresses import X')
+        # Don't transform module path identifiers (from .crypto_addresses import X)
         if pos in ctx.module_path_positions:
             return False
 
@@ -1239,12 +1253,14 @@ class CamelCaseTransformer(Transformer):
             quote = original[0]
             inner = original[1:-1]
             if inner in self.name_mappings:
-                replacements.append((start, end, original, quote + self.name_mappings[inner] + quote))
+                new_str = quote + self.name_mappings[inner] + quote
+                replacements.append((start, end, original, new_str))
 
         # Add format string placeholder replacements
         for start, end, placeholder_name in ctx.format_string_placeholders:
             if placeholder_name in self.name_mappings:
-                replacements.append((start, end, placeholder_name, self.name_mappings[placeholder_name]))
+                new_name = self.name_mappings[placeholder_name]
+                replacements.append((start, end, placeholder_name, new_name))
 
         # Add dict key string replacements (__dict__["name"], getattr, etc.)
         for start, end, key_name in ctx.dict_key_strings:
