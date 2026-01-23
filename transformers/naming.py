@@ -12,6 +12,7 @@ Uses AST analysis to:
 - Sync pytest.mark.parametrize string arguments
 """
 
+import keyword
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -73,12 +74,25 @@ def snake_to_camel(name: str) -> str:
     if not name:
         return leading_underscores
 
+    # Check for trailing underscore (used to avoid keyword conflicts like raise_)
+    trailing_underscore = ""
+    if name.endswith("_"):
+        trailing_underscore = "_"
+        name = name[:-1]
+
+    if not name:
+        return leading_underscores + trailing_underscore
+
     # Split and convert
     parts = name.split("_")
     # First part stays lowercase, rest are capitalized
     result = parts[0].lower() + "".join(word.capitalize() for word in parts[1:] if word)
 
-    return leading_underscores + result
+    # If the result would be a Python keyword, preserve the trailing underscore
+    if keyword.iskeyword(result) or result in ('True', 'False', 'None'):
+        trailing_underscore = "_"
+
+    return leading_underscores + result + trailing_underscore
 
 
 def camel_to_snake(name: str) -> str:
@@ -221,15 +235,20 @@ class NameAnalyzer:
                         ctx.imported_names.add(name)
                     elif child.type == "aliased_import":
                         # import module as alias
+                        module_name = None
+                        alias = None
                         for subchild in child.children:
                             if subchild.type == "dotted_name":
-                                name = self._get_text(subchild).split(".")[0]
-                                ctx.imported_names.add(name)
+                                module_name = self._get_text(subchild).split(".")[0]
+                                ctx.imported_names.add(module_name)
                             elif subchild.type == "identifier":
                                 # This is the alias
                                 alias = self._get_text(subchild)
                                 ctx.module_names.add(alias)
                                 ctx.imported_names.add(alias)
+                        # If the module is a project package, add alias to project_module_aliases
+                        if module_name and alias and module_name in ctx.project_packages:
+                            ctx.project_module_aliases.add(alias)
 
             # from module import name
             # from module import name as alias
@@ -1030,14 +1049,13 @@ class CamelCaseTransformer(Transformer):
         if name in ctx.imported_names:
             return False
 
-        # Never transform attribute accesses on external modules (e.g., importlib.util.find_spec)
-        # even if the name happens to be defined in the project
-        if pos in ctx.external_module_attribute_positions:
-            return False
-
         # Don't transform attribute accesses (module.method patterns)
         # UNLESS the name is a known project-wide definition (cross-file attribute sync)
-        if pos in ctx.attribute_positions:
+        # This includes external_module_attribute_positions - we allow project definitions
+        # to be transformed even on objects that may have come from external calls,
+        # because the same variable name might hold both external and project objects
+        # in different scopes/methods
+        if pos in ctx.attribute_positions or pos in ctx.external_module_attribute_positions:
             if name not in self.project_definitions:
                 return False
 
@@ -1501,6 +1519,26 @@ class BadNamingTransformer(Transformer):
                             if self.rename_parameters and self._is_transformable(param_name, ctx):
                                 defined_names.add(param_name)
 
+            # Get function body first (needed for multiple passes)
+            body = func_node.child_by_field_name("body")
+
+            # First, collect nonlocal and global names (these are NOT local definitions)
+            nonlocal_names: set[str] = set()
+
+            def collect_nonlocal_names(n: Node):
+                if n.type in ("nonlocal_statement", "global_statement"):
+                    for child in n.children:
+                        if child.type == "identifier":
+                            name = source_bytes[child.start_byte:child.end_byte]
+                            nonlocal_names.add(name.decode('utf-8'))
+                for child in n.children:
+                    # Don't recurse into nested functions
+                    if child.type != "function_definition":
+                        collect_nonlocal_names(child)
+
+            if body:
+                collect_nonlocal_names(body)
+
             # Collect local variable definitions within this function
             def collect_local_defs(n: Node, depth: int = 0):
                 # Don't recurse into nested functions for definitions
@@ -1516,8 +1554,10 @@ class BadNamingTransformer(Transformer):
                     if left and left.type == "identifier":
                         name = source_bytes[left.start_byte:left.end_byte]
                         name = name.decode('utf-8')
-                        # Skip if it's a parameter being reassigned
-                        if name not in param_names and self._is_transformable(name, ctx):
+                        # Skip if it's a parameter, nonlocal, or global variable
+                        if (name not in param_names
+                            and name not in nonlocal_names
+                            and self._is_transformable(name, ctx)):
                             defined_names.add(name)
 
                 elif n.type == "for_statement":
@@ -1525,23 +1565,29 @@ class BadNamingTransformer(Transformer):
                     if left and left.type == "identifier":
                         name = source_bytes[left.start_byte:left.end_byte]
                         name = name.decode('utf-8')
-                        # Skip if it shadows a parameter
-                        if name not in param_names and self._is_transformable(name, ctx):
+                        # Skip if it shadows a parameter or is nonlocal/global
+                        if (name not in param_names
+                            and name not in nonlocal_names
+                            and self._is_transformable(name, ctx)):
                             defined_names.add(name)
 
                 for child in n.children:
                     new_depth = depth + 1 if n.type == "function_definition" else depth
                     collect_local_defs(child, new_depth)
 
-            # Start collecting from the function body
-            body = func_node.child_by_field_name("body")
+            # Collect local definitions from the function body
             if body:
                 collect_local_defs(body)
 
             # Collect names defined in a nested function (for shadowing detection)
             def get_nested_func_locals(func_node: Node) -> set[str]:
-                """Get names defined locally in a nested function."""
+                """Get names defined locally in a nested function.
+
+                Excludes names declared with nonlocal/global since those
+                refer to outer scopes.
+                """
                 local_names: set[str] = set()
+                nested_nonlocal: set[str] = set()
 
                 # Get parameter names
                 params = func_node.child_by_field_name("parameters")
@@ -1560,7 +1606,23 @@ class BadNamingTransformer(Transformer):
                                     local_names.add(name.decode('utf-8'))
                                     break
 
-                # Get local variable definitions
+                nested_body = func_node.child_by_field_name("body")
+
+                # First collect nonlocal/global names
+                def collect_nested_nonlocal(n: Node):
+                    if n.type in ("nonlocal_statement", "global_statement"):
+                        for child in n.children:
+                            if child.type == "identifier":
+                                name = source_bytes[child.start_byte:child.end_byte]
+                                nested_nonlocal.add(name.decode('utf-8'))
+                    for child in n.children:
+                        if child.type != "function_definition":
+                            collect_nested_nonlocal(child)
+
+                if nested_body:
+                    collect_nested_nonlocal(nested_body)
+
+                # Get local variable definitions (excluding nonlocal/global)
                 def collect_local(n: Node, in_nested: bool = False):
                     # Don't collect from doubly-nested functions
                     if in_nested and n.type == "function_definition":
@@ -1569,19 +1631,22 @@ class BadNamingTransformer(Transformer):
                         left = n.child_by_field_name("left")
                         if left and left.type == "identifier":
                             name = source_bytes[left.start_byte:left.end_byte]
-                            local_names.add(name.decode('utf-8'))
+                            name = name.decode('utf-8')
+                            if name not in nested_nonlocal:
+                                local_names.add(name)
                     elif n.type == "for_statement":
                         left = n.child_by_field_name("left")
                         if left and left.type == "identifier":
                             name = source_bytes[left.start_byte:left.end_byte]
-                            local_names.add(name.decode('utf-8'))
+                            name = name.decode('utf-8')
+                            if name not in nested_nonlocal:
+                                local_names.add(name)
                     for child in n.children:
                         new_nested = in_nested or n.type == "function_definition"
                         collect_local(child, new_nested)
 
-                body = func_node.child_by_field_name("body")
-                if body:
-                    collect_local(body)
+                if nested_body:
+                    collect_local(nested_body)
                 return local_names
 
             # Collect all identifiers (including in nested functions for closures)

@@ -143,8 +143,9 @@ result = transformer.transform(source_code)
 | humanize | 684 pass | 99.6% | 100% |
 | validators | 878 pass | 98.1% | 100% |
 | python-markdown | 1087 pass | 100% | 100% |
+| more-itertools | 701 pass | 98.9% | 100% |
 
-*Note: Pass rates compare transformed code test results to original. Some failures in validators/humanize are pre-existing (missing optional deps).*
+*Note: Pass rates compare transformed code test results to original. Some failures in validators/humanize are pre-existing (missing optional deps). CamelCase failures in more-itertools are due to dynamic imports (`__import__`) that can't be tracked statically.*
 
 ### Mutation Validation
 
