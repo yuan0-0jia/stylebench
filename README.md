@@ -35,8 +35,9 @@ stylebench/
 Requires Python 3.11+ and [uv](https://docs.astral.sh/uv/).
 
 ```bash
-# Clone the repository
+# Clone the repositories
 git clone https://github.com/yuan0-0jia/stylebench.git
+git clone https://github.com/yuan0-0jia/stylebench-data.git
 cd stylebench
 
 # Install dependencies
@@ -47,6 +48,17 @@ uv sync --extra dev
 
 # Run tests
 uv run pytest
+```
+
+## Data Repository
+
+Pre-transformed style variants are available in [stylebench-data](https://github.com/yuan0-0jia/stylebench-data):
+
+```
+stylebench-data/
+├── original/           # Unmodified source repositories
+├── camelcase/          # snake_case → camelCase naming
+└── badnames/           # Descriptive → single-letter local variables
 ```
 
 ## Usage
