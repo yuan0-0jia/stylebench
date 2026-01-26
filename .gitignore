@@ -43,3 +43,7 @@ Thumbs.db
 # Data directories (cloned repos, large files)
 data/original/
 data/transformed/
+
+# Symlinks to stylebench-data repo
+data/camelcase
+data/badnames

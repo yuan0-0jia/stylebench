@@ -35,9 +35,24 @@ PYTHON_BUILTINS = {
     "super", "tuple", "type", "vars", "zip",
     # Built-in constants
     "True", "False", "None", "Ellipsis", "NotImplemented",
-    # Built-in exceptions (common ones)
-    "Exception", "BaseException", "ValueError", "TypeError", "KeyError",
-    "IndexError", "AttributeError", "ImportError", "RuntimeError", "StopIteration",
+    # Built-in exceptions (all standard exceptions)
+    "BaseException", "BaseExceptionGroup", "Exception", "ExceptionGroup",
+    "ArithmeticError", "AssertionError", "AttributeError", "BlockingIOError",
+    "BrokenPipeError", "BufferError", "BytesWarning", "ChildProcessError",
+    "ConnectionAbortedError", "ConnectionError", "ConnectionRefusedError",
+    "ConnectionResetError", "DeprecationWarning", "EOFError", "EnvironmentError",
+    "FileExistsError", "FileNotFoundError", "FloatingPointError", "FutureWarning",
+    "GeneratorExit", "IOError", "ImportError", "ImportWarning", "IndentationError",
+    "IndexError", "InterruptedError", "IsADirectoryError", "KeyError",
+    "KeyboardInterrupt", "LookupError", "MemoryError", "ModuleNotFoundError",
+    "NameError", "NotADirectoryError", "NotImplementedError", "OSError",
+    "OverflowError", "PendingDeprecationWarning", "PermissionError",
+    "ProcessLookupError", "RecursionError", "ReferenceError", "ResourceWarning",
+    "RuntimeError", "RuntimeWarning", "StopAsyncIteration", "StopIteration",
+    "SyntaxError", "SyntaxWarning", "SystemError", "SystemExit", "TabError",
+    "TimeoutError", "TypeError", "UnboundLocalError", "UnicodeDecodeError",
+    "UnicodeEncodeError", "UnicodeError", "UnicodeTranslateError", "UnicodeWarning",
+    "UserWarning", "ValueError", "Warning", "ZeroDivisionError",
     # Special names
     "self", "cls", "_",
     # pytest special method names (fixtures)
@@ -53,7 +68,9 @@ PYTHON_BUILTINS = {
     "get_starttag_text", "getpos", "goahead", "reset", "unknown_decl", "updatepos",
     # xml.etree.ElementTree/xml.sax callback methods
     "start_element", "end_element", "char_data",
-    # unittest callback methods
+    # unittest callback methods (camelCase - must not be transformed to snake_case)
+    "setUp", "tearDown", "setUpClass", "tearDownClass", "setUpModule", "tearDownModule",
+    # unittest callback methods (snake_case - must not be transformed to camelCase)
     "set_up", "tear_down", "set_up_class", "tear_down_class",
     # asyncio callback methods
     "connection_made", "connection_lost", "data_received", "eof_received",
@@ -233,6 +250,8 @@ class NameAnalyzer:
                         name = self._get_text(child).split(".")[0]
                         ctx.module_names.add(name)
                         ctx.imported_names.add(name)
+                        # Mark all identifiers in this module path as non-transformable
+                        self._mark_module_path_identifiers(child, ctx)
                     elif child.type == "aliased_import":
                         # import module as alias
                         module_name = None
@@ -241,6 +260,8 @@ class NameAnalyzer:
                             if subchild.type == "dotted_name":
                                 module_name = self._get_text(subchild).split(".")[0]
                                 ctx.imported_names.add(module_name)
+                                # Mark all identifiers in this module path as non-transformable
+                                self._mark_module_path_identifiers(subchild, ctx)
                             elif subchild.type == "identifier":
                                 # This is the alias
                                 alias = self._get_text(subchild)
@@ -1319,11 +1340,26 @@ class CamelCaseTransformer(Transformer):
 
 
 class SnakeCaseTransformer(Transformer):
-    """Transform camelCase identifiers to snake_case."""
+    """Transform camelCase identifiers to snake_case.
 
-    def __init__(self):
+    This is the inverse of CamelCaseTransformer and includes the same
+    project-aware features for cross-file consistency.
+    """
+
+    def __init__(
+        self,
+        project_packages: set[str] | None = None,
+        project_definitions: set[str] | None = None,
+        project_kwargs_functions: set[str] | None = None,
+    ):
         super().__init__()
         self.name_mappings: dict[str, str] = {}
+        self.project_packages = project_packages or set()
+        # Project-wide definitions - names defined anywhere in the project
+        # Used to allow attribute access transformation across files
+        self.project_definitions = project_definitions or set()
+        # Project-wide functions that use **kwargs - kwargs should not be transformed
+        self.project_kwargs_functions = project_kwargs_functions or set()
 
     def _collect_identifiers(self, node: Node, source_bytes: bytes) -> list[tuple[str, int, int]]:
         """Collect all identifiers from the AST."""
@@ -1341,19 +1377,55 @@ class SnakeCaseTransformer(Transformer):
         return identifiers
 
     def _is_transformable(self, name: str, pos: tuple[int, int], ctx: CodeContext) -> bool:
-        """Check if a name should be transformed."""
+        """Check if a name at a position should be transformed."""
+        # Never transform builtins
         if name in PYTHON_BUILTINS:
             return False
+
+        # Never transform dunder names
         if name.startswith("__") and name.endswith("__"):
             return False
+
+        # Never transform ALL_CAPS constants
         if name.isupper():
             return False
+
+        # Never transform single-char names
         if len(name.lstrip("_")) <= 1:
             return False
+
+        # Never transform PascalCase class names (start with uppercase)
+        # e.g., TocExtension, TestValidationError should stay as-is
+        # This checks: starts with uppercase, has lowercase after, and contains uppercase later
+        if name[0].isupper() and len(name) > 1:
+            # It's PascalCase if first char is upper and there's at least one lowercase
+            has_lower = any(c.islower() for c in name)
+            if has_lower:
+                return False
+
+        # Don't transform imported names
         if name in ctx.imported_names:
             return False
-        if pos in ctx.attribute_positions:
+
+        # Don't transform attribute accesses (module.method patterns)
+        # UNLESS the name is a known project-wide definition (cross-file attribute sync)
+        if pos in ctx.attribute_positions or pos in ctx.external_module_attribute_positions:
+            if name not in self.project_definitions:
+                return False
+
+        # Don't transform module path identifiers (from .crypto_addresses import X)
+        if pos in ctx.module_path_positions:
             return False
+
+        # Don't transform keyword argument names in calls to external functions
+        if pos in ctx.external_kwarg_positions:
+            return False
+
+        # For self.x patterns, only transform if x is a project definition
+        # This prevents transforming inherited attributes from parent classes
+        if pos in ctx.self_attribute_positions:
+            if name not in ctx.local_definitions and name not in self.project_definitions:
+                return False
 
         # Must look like camelCase (has lowercase followed by uppercase)
         if not re.search(r"[a-z][A-Z]", name):
@@ -1361,10 +1433,67 @@ class SnakeCaseTransformer(Transformer):
 
         return True
 
+    def collect_definitions_from_directory(
+        self,
+        directory: Path | str,
+        pattern: str = "**/*.py",
+        exclude_patterns: list[str] | None = None,
+    ) -> set[str]:
+        """
+        Collect all camelCase definitions from a directory.
+
+        This is used for two-pass transformation: first collect all definitions,
+        then transform with project-wide knowledge.
+
+        Also collects functions that use **kwargs and stores them in
+        self.project_kwargs_functions.
+
+        Returns:
+            Set of camelCase names defined in the project
+        """
+        from pathlib import Path
+
+        directory = Path(directory)
+        exclude_patterns = exclude_patterns or []
+        definitions = set()
+
+        for file_path in directory.glob(pattern):
+            # Skip excluded patterns
+            skip = False
+            for exclude in exclude_patterns:
+                if file_path.match(exclude):
+                    skip = True
+                    break
+            if skip or not file_path.is_file():
+                continue
+
+            try:
+                source_code = file_path.read_text()
+                source_bytes = source_code.encode('utf-8')
+                root = self.parse(source_code)
+
+                analyzer = NameAnalyzer(source_bytes, self.project_packages)
+                ctx = analyzer.analyze(root)
+
+                # Add all local definitions that look like camelCase
+                for name in ctx.local_definitions:
+                    if re.search(r"[a-z][A-Z]", name) and name not in PYTHON_BUILTINS:
+                        # Skip PascalCase class names (start with uppercase)
+                        if name[0].isupper() and any(c.islower() for c in name):
+                            continue
+                        definitions.add(name)
+
+                # Add all kwargs functions to project-wide set
+                self.project_kwargs_functions.update(ctx.kwargs_functions)
+            except Exception:
+                continue
+
+        return definitions
+
     def _build_name_mappings(
         self, identifiers: list[tuple[str, int, int]], ctx: CodeContext
     ) -> dict[str, str]:
-        """Build consistent name mappings."""
+        """Build consistent name mappings for transformable identifiers."""
         mappings = {}
 
         for name, start, end in identifiers:
@@ -1385,8 +1514,11 @@ class SnakeCaseTransformer(Transformer):
         source_bytes = source_code.encode('utf-8')
         root = self.parse(source_code)
 
-        analyzer = NameAnalyzer(source_bytes)
+        analyzer = NameAnalyzer(source_bytes, self.project_packages)
         ctx = analyzer.analyze(root)
+
+        # Merge project-wide kwargs functions into context
+        ctx.kwargs_functions.update(self.project_kwargs_functions)
 
         identifiers = self._collect_identifiers(root, source_bytes)
         self.name_mappings = self._build_name_mappings(identifiers, ctx)
@@ -1405,12 +1537,46 @@ class SnakeCaseTransformer(Transformer):
                 if self._is_transformable(name, (start, end), ctx):
                     replacements.append((start, end, name, self.name_mappings[name]))
 
+        # Add parametrize string replacements
+        for start, end, original in ctx.parametrize_strings:
+            quote = original[0]
+            inner = original[1:-1]
+            new_inner = inner
+            for old_name, new_name in self.name_mappings.items():
+                new_inner = re.sub(r'\b' + re.escape(old_name) + r'\b', new_name, new_inner)
+            if new_inner != inner:
+                new_str = quote + new_inner + quote
+                replacements.append((start, end, original, new_str))
+
+        # Add __all__ export string replacements
+        for start, end, original in ctx.all_export_strings:
+            quote = original[0]
+            inner = original[1:-1]
+            if inner in self.name_mappings:
+                new_str = quote + self.name_mappings[inner] + quote
+                replacements.append((start, end, original, new_str))
+
+        # Add format string placeholder replacements
+        for start, end, placeholder_name in ctx.format_string_placeholders:
+            if placeholder_name in self.name_mappings:
+                new_name = self.name_mappings[placeholder_name]
+                replacements.append((start, end, placeholder_name, new_name))
+
+        # Add dict key string replacements (__dict__["name"], getattr, etc.)
+        for start, end, key_name in ctx.dict_key_strings:
+            if key_name in self.name_mappings:
+                replacements.append((start, end, key_name, self.name_mappings[key_name]))
+
+        # Sort by position in reverse order (process from end to start)
         replacements.sort(key=lambda x: x[0], reverse=True)
 
         result_bytes = source_bytes
         changes_applied = 0
         for start, end, original, transformed in replacements:
-            actual = result_bytes[start:end].decode('utf-8')
+            try:
+                actual = result_bytes[start:end].decode('utf-8')
+            except UnicodeDecodeError:
+                continue
             if actual != original:
                 continue
             result_bytes = result_bytes[:start] + transformed.encode('utf-8') + result_bytes[end:]

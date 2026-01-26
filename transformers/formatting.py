@@ -17,41 +17,42 @@ class RuffConfig:
     """Configuration for ruff formatter."""
 
     line_length: int = 88
-    indent_width: int = 4
+    indent_style: str = "space"  # "space" or "tab"
     quote_style: str = "double"  # "double" or "single"
     skip_magic_trailing_comma: bool = False
 
     def to_toml(self) -> str:
         """Generate ruff configuration as TOML string."""
-        return f"""
+        return f"""line-length = {self.line_length}
+
 [format]
-line-length = {self.line_length}
-indent-width = {self.indent_width}
+indent-style = "{self.indent_style}"
 quote-style = "{self.quote_style}"
 skip-magic-trailing-comma = {str(self.skip_magic_trailing_comma).lower()}
 """
 
 
 # Predefined formatting profiles
+# Note: ruff format only supports "space" or "tab" indent styles, not custom widths
 PROFILES = {
     "default": RuffConfig(
         line_length=88,
-        indent_width=4,
+        indent_style="space",
         quote_style="double",
     ),
     "pep8_strict": RuffConfig(
         line_length=79,
-        indent_width=4,
+        indent_style="space",
         quote_style="double",
     ),
     "wide": RuffConfig(
         line_length=120,
-        indent_width=4,
+        indent_style="space",
         quote_style="double",
     ),
     "compact": RuffConfig(
         line_length=79,
-        indent_width=2,
+        indent_style="space",
         quote_style="single",
         skip_magic_trailing_comma=True,
     ),
@@ -136,7 +137,7 @@ class RuffFormatter(Transformer):
             details = [
                 f"Applied ruff formatting with profile '{self.profile_name}':",
                 f"  Line length: {self.config.line_length}",
-                f"  Indent width: {self.config.indent_width}",
+                f"  Indent style: {self.config.indent_style}",
                 f"  Quote style: {self.config.quote_style}",
             ]
 
