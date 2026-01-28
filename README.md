@@ -23,8 +23,10 @@ stylebench/
 │   └── formatting.py      # Code formatting transformer
 ├── benchmarks/            # Agent harness and evaluation (planned)
 ├── data/
-│   ├── original/          # Source Python projects (gitignored)
-│   ├── transformed/       # Style-transformed variants
+│   ├── original/          # Symlink to stylebench-data/original
+│   ├── camelcase/         # Symlink to stylebench-data/camelcase
+│   ├── badnames/          # Symlink to stylebench-data/badnames
+│   ├── transformed/       # Working directory for transformations
 │   └── results/           # Validation and agent performance data
 ├── analysis/              # Statistical analysis and visualization
 └── tests/                 # Test suite
@@ -58,12 +60,48 @@ Pre-transformed style variants are available in [stylebench-data](https://github
 stylebench-data/
 ├── original/           # Unmodified source repositories
 ├── camelcase/          # snake_case → camelCase naming
-└── badnames/           # Descriptive → single-letter local variables
+├── snakecase/          # camelCase → snake_case (roundtrip)
+├── badnames/           # Descriptive → single-letter local variables
+└── formatting/         # Compact formatting (79 chars, single quotes)
+```
+
+The code repo has symlinks to the data repo for easy access:
+
+```bash
+# After cloning both repos side by side
+cd stylebench
+ls data/original/       # Points to ../stylebench-data/original
 ```
 
 ## Usage
 
 > **Full guide**: See [docs/BENCHMARKING.md](docs/BENCHMARKING.md) for the complete benchmarking workflow.
+
+### CLI: Transform Projects
+
+Use the CLI script to transform entire projects:
+
+```bash
+# Transform to camelCase (requires --packages to identify project code)
+python scripts/transform.py camelcase data/original/humanize output/humanize-camel --packages humanize
+
+# Transform to snake_case (reverses camelCase)
+python scripts/transform.py snakecase output/humanize-camel output/humanize-snake --packages humanize
+
+# Transform to bad naming (single-letter locals)
+python scripts/transform.py badnames data/original/humanize output/humanize-bad
+
+# Apply compact formatting
+python scripts/transform.py formatting data/original/humanize output/humanize-fmt --style compact
+
+# Dry run (show changes without writing)
+python scripts/transform.py camelcase data/original/humanize output/ --packages humanize --dry-run
+
+# Transform in place (modifies input directory)
+python scripts/transform.py formatting output/humanize --in-place --style wide
+```
+
+**Formatting styles**: `default`, `compact` (79 chars, single quotes), `wide` (120 chars), `pep8_strict`
 
 ### Bug Injection
 
@@ -150,14 +188,14 @@ result = transformer.transform(source_code)
 
 **Validation results on target projects:**
 
-| Project | Original | CamelCase | BadNaming |
-|---------|----------|-----------|-----------|
-| humanize | 684 pass | 99.6% | 100% |
-| validators | 878 pass | 98.1% | 100% |
-| python-markdown | 1087 pass | 100% | 100% |
-| more-itertools | 701 pass | 98.9% | 100% |
+| Project | Original | CamelCase | SnakeCase | BadNaming | Formatting |
+|---------|----------|-----------|-----------|-----------|------------|
+| humanize | 684 pass | 99.6% | 100% | 100% | 100% |
+| validators | 878 pass | 98.1% | 100% | 100% | 100% |
+| python-markdown | 776 pass | 100% | 100% | 100% | 100% |
+| more-itertools | 701 pass | 98.9% | 99.9% | 100% | 100% |
 
-*Note: Pass rates compare transformed code test results to original. Some failures in validators/humanize are pre-existing (missing optional deps). CamelCase failures in more-itertools are due to dynamic imports (`__import__`) that can't be tracked statically.*
+*Note: Pass rates compare transformed code test results to original. CamelCase/SnakeCase minor failures are due to dynamic imports (`__import__`) that can't be tracked statically.*
 
 ### Mutation Validation
 
