@@ -8,6 +8,7 @@ are "killed" (cause test failures) vs "survived" (tests still pass).
 import json
 import subprocess
 import time
+from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
@@ -174,7 +175,7 @@ class Validator:
         file_path: str | Path,
         mutation_types: list[MutationType] | None = None,
         max_mutations: int | None = None,
-        progress_callback: callable | None = None,
+        progress_callback: Callable | None = None,
     ) -> list[MutationResult]:
         """
         Validate all mutations in a single file.
@@ -217,7 +218,7 @@ class Validator:
         mutation_types: list[MutationType] | None = None,
         max_mutations_per_file: int | None = None,
         max_total_mutations: int | None = None,
-        progress_callback: callable | None = None,
+        progress_callback: Callable | None = None,
     ) -> ValidationReport:
         """
         Validate mutations across an entire repository.
