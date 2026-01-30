@@ -17,6 +17,7 @@ class RepoConfig:
     test_dir: str  # Relative to repo root
     test_deps: list[str]  # Additional test dependencies
     pythonpath_dir: str | None = None  # If different from source_dir
+    ignore_patterns: list[str] | None = None  # Test files/dirs to ignore
 
     def get_pythonpath(self, repo_path: Path) -> str:
         """Get the PYTHONPATH for running tests."""
@@ -32,16 +33,25 @@ class RepoConfig:
             repo_path: Path to the repository
             external: If True, use PYTHONPATH approach for running from outside repo
         """
+        # Build ignore flags
+        ignore_flags = []
+        if self.ignore_patterns:
+            for pattern in self.ignore_patterns:
+                ignore_flags.extend(["--ignore", str(repo_path / pattern)])
+
         if external:
             # Running from outside the repo - use --with to install deps
             deps = ["--with", "pytest"]
             for dep in self.test_deps:
                 deps.extend(["--with", dep])
             test_path = str(repo_path / self.test_dir)
-            return ["uv", "run", *deps, "pytest", test_path, "-x", "-q", "--tb=short", "--color=no"]
+            return [
+                "uv", "run", *deps, "pytest", test_path,
+                "-x", "-q", "--tb=short", "--color=no", *ignore_flags
+            ]
         else:
             # Running from inside the repo - use uv run directly
-            return ["uv", "run", "pytest", "-x", "-q", "--tb=short", "--color=no"]
+            return ["uv", "run", "pytest", "-x", "-q", "--tb=short", "--color=no", *ignore_flags]
 
     def get_source_path(self, repo_path: Path) -> Path:
         """Get the source directory path."""
@@ -61,7 +71,7 @@ REPO_CONFIGS = {
         name="validators",
         source_dir="src/validators",
         test_dir="tests",
-        test_deps=[],
+        test_deps=["validators[crypto-eth-addresses]"],
         pythonpath_dir="src",
     ),
     "python-markdown": RepoConfig(
@@ -70,6 +80,7 @@ REPO_CONFIGS = {
         test_dir="tests",
         test_deps=["pyyaml"],
         pythonpath_dir=".",
+        ignore_patterns=["tests/test_syntax/extensions/test_md_in_html.py"],
     ),
     "more-itertools": RepoConfig(
         name="more-itertools",

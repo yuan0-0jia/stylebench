@@ -30,6 +30,11 @@ def collect_project_context(src_dir: Path, project_packages: set[str]):
     """First pass: collect definitions and kwargs functions across all files."""
     all_definitions = set()
     kwargs_functions = set()
+    all_function_names = set()
+    all_class_names = set()
+    all_parameter_names = set()
+    all_instance_attrs = set()
+    all_class_attrs = set()
 
     temp_transformer = CamelCaseTransformer(project_packages=project_packages)
 
@@ -43,15 +48,30 @@ def collect_project_context(src_dir: Path, project_packages: set[str]):
             ctx = analyzer.analyze(root)
             all_definitions.update(ctx.local_definitions)
             kwargs_functions.update(ctx.kwargs_functions)
+            all_function_names.update(ctx.function_names)
+            all_class_names.update(ctx.class_names)
+            all_parameter_names.update(ctx.parameter_names)
+            all_instance_attrs.update(ctx.instance_attribute_names)
+            all_class_attrs.update(ctx.class_attribute_names)
         except Exception as e:
             print(f"  Warning: Could not analyze {py_file}: {e}")
 
-    return all_definitions, kwargs_functions
+    return {
+        "definitions": all_definitions,
+        "kwargs_functions": kwargs_functions,
+        "function_names": all_function_names,
+        "class_names": all_class_names,
+        "parameter_names": all_parameter_names,
+        "instance_attribute_names": all_instance_attrs,
+        "class_attribute_names": all_class_attrs,
+    }
 
 
-def should_skip(py_file: Path) -> bool:
+def should_skip(py_file: Path, skip_tests: bool = True) -> bool:
     """Check if file should be skipped."""
     skip_patterns = [".venv", "__pycache__", ".git", "node_modules", ".tox"]
+    if skip_tests:
+        skip_patterns.extend(["tests/", "test_", "/test/"])
     return any(p in str(py_file) for p in skip_patterns)
 
 
@@ -144,21 +164,41 @@ def main():
     print(f"\nApplying {args.transformer} transformer...")
 
     if args.transformer == "camelcase":
-        definitions, kwargs_funcs = collect_project_context(work_dir, project_packages)
-        print(f"  Collected {len(definitions)} definitions, {len(kwargs_funcs)} kwargs functions")
+        ctx = collect_project_context(work_dir, project_packages)
+        print(f"  Collected {len(ctx['definitions'])} definitions, "
+              f"{len(ctx['kwargs_functions'])} kwargs functions")
+        print(f"  Skipping: {len(ctx['function_names'])} funcs, "
+              f"{len(ctx['class_names'])} classes, {len(ctx['parameter_names'])} params, "
+              f"{len(ctx['instance_attribute_names'])} inst attrs, "
+              f"{len(ctx['class_attribute_names'])} class attrs")
         transformer = CamelCaseTransformer(
             project_packages=project_packages,
-            project_definitions=definitions,
-            project_kwargs_functions=kwargs_funcs,
+            project_definitions=ctx["definitions"],
+            project_kwargs_functions=ctx["kwargs_functions"],
+            project_function_names=ctx["function_names"],
+            project_class_names=ctx["class_names"],
+            project_parameter_names=ctx["parameter_names"],
+            project_instance_attrs=ctx["instance_attribute_names"],
+            project_class_attrs=ctx["class_attribute_names"],
         )
 
     elif args.transformer == "snakecase":
-        definitions, kwargs_funcs = collect_project_context(work_dir, project_packages)
-        print(f"  Collected {len(definitions)} definitions, {len(kwargs_funcs)} kwargs functions")
+        ctx = collect_project_context(work_dir, project_packages)
+        print(f"  Collected {len(ctx['definitions'])} definitions, "
+              f"{len(ctx['kwargs_functions'])} kwargs functions")
+        print(f"  Skipping: {len(ctx['function_names'])} funcs, "
+              f"{len(ctx['class_names'])} classes, {len(ctx['parameter_names'])} params, "
+              f"{len(ctx['instance_attribute_names'])} inst attrs, "
+              f"{len(ctx['class_attribute_names'])} class attrs")
         transformer = SnakeCaseTransformer(
             project_packages=project_packages,
-            project_definitions=definitions,
-            project_kwargs_functions=kwargs_funcs,
+            project_definitions=ctx["definitions"],
+            project_kwargs_functions=ctx["kwargs_functions"],
+            project_function_names=ctx["function_names"],
+            project_class_names=ctx["class_names"],
+            project_parameter_names=ctx["parameter_names"],
+            project_instance_attrs=ctx["instance_attribute_names"],
+            project_class_attrs=ctx["class_attribute_names"],
         )
 
     elif args.transformer == "badnames":

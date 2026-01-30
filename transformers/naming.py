@@ -149,6 +149,21 @@ class CodeContext:
     # Names defined locally (SHOULD be transformed)
     local_definitions: set[str] = field(default_factory=set)
 
+    # Function names defined locally (should NOT be transformed - preserves API)
+    function_names: set[str] = field(default_factory=set)
+
+    # Class names defined locally (should NOT be transformed - preserves API)
+    class_names: set[str] = field(default_factory=set)
+
+    # Parameter names (should NOT be transformed - preserves API)
+    parameter_names: set[str] = field(default_factory=set)
+
+    # Instance attribute names (self.x, cls.x) - should NOT be transformed (preserves API)
+    instance_attribute_names: set[str] = field(default_factory=set)
+
+    # Class-level attribute names - should NOT be transformed (preserves API)
+    class_attribute_names: set[str] = field(default_factory=set)
+
     # Positions of attribute accesses (should NOT be transformed)
     # Maps (start_byte, end_byte) -> True for identifiers that are attributes
     attribute_positions: set[tuple[int, int]] = field(default_factory=set)
@@ -346,22 +361,31 @@ class NameAnalyzer:
         """Collect locally defined names (functions, classes, variables)."""
 
         def visit(node: Node):
-            # Function definitions
+            # Function definitions - track separately, don't transform
             if node.type == "function_definition":
                 name_node = node.child_by_field_name("name")
                 if name_node:
-                    ctx.local_definitions.add(self._get_text(name_node))
+                    func_name = self._get_text(name_node)
+                    ctx.function_names.add(func_name)
+                    ctx.local_definitions.add(func_name)  # Still track as local for reference
 
-                # Also collect parameters
+                # Also collect parameters - track separately, don't transform
                 params_node = node.child_by_field_name("parameters")
                 if params_node:
                     self._collect_parameters(params_node, ctx)
 
-            # Class definitions
+            # Class definitions - track separately, don't transform
             elif node.type == "class_definition":
                 name_node = node.child_by_field_name("name")
                 if name_node:
-                    ctx.local_definitions.add(self._get_text(name_node))
+                    class_name = self._get_text(name_node)
+                    ctx.class_names.add(class_name)
+                    ctx.local_definitions.add(class_name)  # Still track as local for reference
+
+                # Also collect class-level attributes (defined directly in class body)
+                body = node.child_by_field_name("body")
+                if body:
+                    self._collect_class_attributes(body, ctx)
 
             # Variable assignments
             elif node.type == "assignment":
@@ -465,13 +489,17 @@ class NameAnalyzer:
         """Collect parameter names from a parameters node."""
         for child in params_node.children:
             if child.type == "identifier":
-                ctx.local_definitions.add(self._get_text(child))
+                param_name = self._get_text(child)
+                ctx.parameter_names.add(param_name)
+                ctx.local_definitions.add(param_name)  # Still track as local for reference
             elif child.type in ("default_parameter", "typed_parameter",
                                "typed_default_parameter", "list_splat_pattern",
                                "dictionary_splat_pattern"):
                 for subchild in child.children:
                     if subchild.type == "identifier":
-                        ctx.local_definitions.add(self._get_text(subchild))
+                        param_name = self._get_text(subchild)
+                        ctx.parameter_names.add(param_name)
+                        ctx.local_definitions.add(param_name)  # Still track as local for reference
                         break
 
     def _collect_assignment_targets(self, node: Node, ctx: CodeContext):
@@ -479,16 +507,57 @@ class NameAnalyzer:
         if node.type == "identifier":
             ctx.local_definitions.add(self._get_text(node))
         elif node.type == "attribute":
-            # Handle self.x and cls.x attribute assignments
+            # Handle self.x and cls.x attribute assignments - track separately
             obj = node.child_by_field_name("object")
             attr = node.child_by_field_name("attribute")
             if obj and attr:
                 obj_text = self._get_text(obj)
                 if obj_text in ("self", "cls"):
-                    ctx.local_definitions.add(self._get_text(attr))
+                    attr_name = self._get_text(attr)
+                    ctx.local_definitions.add(attr_name)
+                    ctx.instance_attribute_names.add(attr_name)  # Track as instance attr
+                # Also handle self.x.y patterns (e.g., self.md.toc_tokens)
+                elif obj.type == "attribute":
+                    inner_obj = obj.child_by_field_name("object")
+                    if inner_obj:
+                        inner_obj_text = self._get_text(inner_obj)
+                        if inner_obj_text in ("self", "cls"):
+                            attr_name = self._get_text(attr)
+                            ctx.local_definitions.add(attr_name)
+                            ctx.instance_attribute_names.add(attr_name)
         elif node.type in ("tuple_pattern", "list_pattern", "pattern_list", "tuple", "list"):
             for child in node.children:
                 self._collect_assignment_targets(child, ctx)
+
+    def _collect_class_attributes(self, class_body: Node, ctx: CodeContext):
+        """Collect class-level attribute names (defined directly in class body, not in methods)."""
+        for child in class_body.children:
+            # Skip method definitions - we only want class-level attributes
+            if child.type == "function_definition":
+                continue
+            # Handle assignments: `attr = value` or `attr: type = value`
+            if child.type == "expression_statement":
+                expr = child.children[0] if child.children else None
+                if expr and expr.type == "assignment":
+                    left = expr.child_by_field_name("left")
+                    if left and left.type == "identifier":
+                        attr_name = self._get_text(left)
+                        ctx.class_attribute_names.add(attr_name)
+                        ctx.local_definitions.add(attr_name)
+            # Handle type-annotated attributes: `attr: Type` or `attr: Type = value`
+            elif child.type in ("type_alias_statement",):
+                name = child.child_by_field_name("name")
+                if name:
+                    attr_name = self._get_text(name)
+                    ctx.class_attribute_names.add(attr_name)
+                    ctx.local_definitions.add(attr_name)
+            # Handle annotated assignment (e.g., `output_formats: ClassVar[...] = {...}`)
+            elif hasattr(child, 'type') and 'assignment' in child.type:
+                left = child.child_by_field_name("left") or child.child_by_field_name("name")
+                if left and left.type == "identifier":
+                    attr_name = self._get_text(left)
+                    ctx.class_attribute_names.add(attr_name)
+                    ctx.local_definitions.add(attr_name)
 
     def _collect_attribute_accesses(self, root: Node, ctx: CodeContext):
         """Mark positions of attribute accesses that should NOT be transformed.
@@ -1016,13 +1085,22 @@ class NameAnalyzer:
 
 
 class CamelCaseTransformer(Transformer):
-    """Transform snake_case identifiers to camelCase."""
+    """Transform snake_case identifiers to camelCase.
+
+    Only transforms local variable names, not function names, class names,
+    or parameter names (to preserve public API).
+    """
 
     def __init__(
         self,
         project_packages: set[str] | None = None,
         project_definitions: set[str] | None = None,
         project_kwargs_functions: set[str] | None = None,
+        project_function_names: set[str] | None = None,
+        project_class_names: set[str] | None = None,
+        project_parameter_names: set[str] | None = None,
+        project_instance_attrs: set[str] | None = None,
+        project_class_attrs: set[str] | None = None,
     ):
         super().__init__()
         self.name_mappings: dict[str, str] = {}
@@ -1032,6 +1110,16 @@ class CamelCaseTransformer(Transformer):
         self.project_definitions = project_definitions or set()
         # Project-wide functions that use **kwargs - kwargs should not be transformed
         self.project_kwargs_functions = project_kwargs_functions or set()
+        # Project-wide function names - should NOT be transformed (preserve API)
+        self.project_function_names = project_function_names or set()
+        # Project-wide class names - should NOT be transformed (preserve API)
+        self.project_class_names = project_class_names or set()
+        # Project-wide parameter names - should NOT be transformed (preserve API)
+        self.project_parameter_names = project_parameter_names or set()
+        # Project-wide instance attribute names - should NOT be transformed (preserve API)
+        self.project_instance_attrs = project_instance_attrs or set()
+        # Project-wide class attribute names - should NOT be transformed (preserve API)
+        self.project_class_attrs = project_class_attrs or set()
 
     def _collect_identifiers(self, node: Node, source_bytes: bytes) -> list[tuple[str, int, int]]:
         """Collect all identifiers from the AST."""
@@ -1070,13 +1158,34 @@ class CamelCaseTransformer(Transformer):
         if name in ctx.imported_names:
             return False
 
-        # Don't transform attribute accesses (module.method patterns)
-        # UNLESS the name is a known project-wide definition (cross-file attribute sync)
-        # This includes external_module_attribute_positions - we allow project definitions
-        # to be transformed even on objects that may have come from external calls,
-        # because the same variable name might hold both external and project objects
-        # in different scopes/methods
-        if pos in ctx.attribute_positions or pos in ctx.external_module_attribute_positions:
+        # Don't transform function names (preserves public API)
+        if name in ctx.function_names or name in self.project_function_names:
+            return False
+
+        # Don't transform class names (preserves public API)
+        if name in ctx.class_names or name in self.project_class_names:
+            return False
+
+        # Don't transform parameter names (preserves public API)
+        if name in ctx.parameter_names or name in self.project_parameter_names:
+            return False
+
+        # Don't transform instance attribute names (preserves public API)
+        if name in ctx.instance_attribute_names or name in self.project_instance_attrs:
+            return False
+
+        # Don't transform class attribute names (preserves public API)
+        if name in ctx.class_attribute_names or name in self.project_class_attrs:
+            return False
+
+        # NEVER transform attribute accesses on external modules (e.g., metadata.entry_points)
+        # These are external APIs that must stay unchanged
+        if pos in ctx.external_module_attribute_positions:
+            return False
+
+        # For other attribute accesses, skip unless the name is a project-wide definition
+        # This allows cross-file attribute sync for project-defined attributes
+        if pos in ctx.attribute_positions:
             if name not in self.project_definitions:
                 return False
 
@@ -1344,6 +1453,9 @@ class SnakeCaseTransformer(Transformer):
 
     This is the inverse of CamelCaseTransformer and includes the same
     project-aware features for cross-file consistency.
+
+    Only transforms local variable names, not function names, class names,
+    or parameter names (to preserve public API).
     """
 
     def __init__(
@@ -1351,6 +1463,11 @@ class SnakeCaseTransformer(Transformer):
         project_packages: set[str] | None = None,
         project_definitions: set[str] | None = None,
         project_kwargs_functions: set[str] | None = None,
+        project_function_names: set[str] | None = None,
+        project_class_names: set[str] | None = None,
+        project_parameter_names: set[str] | None = None,
+        project_instance_attrs: set[str] | None = None,
+        project_class_attrs: set[str] | None = None,
     ):
         super().__init__()
         self.name_mappings: dict[str, str] = {}
@@ -1360,6 +1477,16 @@ class SnakeCaseTransformer(Transformer):
         self.project_definitions = project_definitions or set()
         # Project-wide functions that use **kwargs - kwargs should not be transformed
         self.project_kwargs_functions = project_kwargs_functions or set()
+        # Project-wide function names - should NOT be transformed (preserve API)
+        self.project_function_names = project_function_names or set()
+        # Project-wide class names - should NOT be transformed (preserve API)
+        self.project_class_names = project_class_names or set()
+        # Project-wide parameter names - should NOT be transformed (preserve API)
+        self.project_parameter_names = project_parameter_names or set()
+        # Project-wide instance attribute names - should NOT be transformed (preserve API)
+        self.project_instance_attrs = project_instance_attrs or set()
+        # Project-wide class attribute names - should NOT be transformed (preserve API)
+        self.project_class_attrs = project_class_attrs or set()
 
     def _collect_identifiers(self, node: Node, source_bytes: bytes) -> list[tuple[str, int, int]]:
         """Collect all identifiers from the AST."""
@@ -1405,6 +1532,26 @@ class SnakeCaseTransformer(Transformer):
 
         # Don't transform imported names
         if name in ctx.imported_names:
+            return False
+
+        # Don't transform function names (preserves public API)
+        if name in ctx.function_names or name in self.project_function_names:
+            return False
+
+        # Don't transform class names (preserves public API)
+        if name in ctx.class_names or name in self.project_class_names:
+            return False
+
+        # Don't transform parameter names (preserves public API)
+        if name in ctx.parameter_names or name in self.project_parameter_names:
+            return False
+
+        # Don't transform instance attribute names (preserves public API)
+        if name in ctx.instance_attribute_names or name in self.project_instance_attrs:
+            return False
+
+        # Don't transform class attribute names (preserves public API)
+        if name in ctx.class_attribute_names or name in self.project_class_attrs:
             return False
 
         # Don't transform attribute accesses (module.method patterns)

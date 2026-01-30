@@ -1,7 +1,6 @@
 """Bug injection and catalog generation for StyleBench."""
 
 from .catalog import BugCatalog, BugEntry, CatalogGenerator, generate_catalog
-from .repo_config import REPO_CONFIGS, RepoConfig, get_config
 from .injector import (
     Injector,
     MutationSite,
@@ -10,6 +9,7 @@ from .injector import (
     apply_mutation_by_id,
     list_mutation_sites,
 )
+from .repo_config import REPO_CONFIGS, RepoConfig, get_config
 from .validator import ValidationReport, Validator, validate_mutations
 
 __all__ = [
