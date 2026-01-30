@@ -5,6 +5,11 @@ Implements semantic mutations:
 - Comparison operators: < ↔ >, <= ↔ >=, == ↔ !=
 - Boolean operators: and ↔ or
 - Boundary mutations: +1 ↔ -1 for integer literals
+- Boolean literals: True ↔ False
+- Membership operators: in ↔ not in
+- Identity operators: is ↔ is not
+- Arithmetic operators: + ↔ -, * ↔ /
+- Return mutations: return x → return None
 """
 
 from dataclasses import dataclass
@@ -23,6 +28,12 @@ class MutationType(Enum):
     BOOLEAN_AND_OR = "and_or"  # and ↔ or
     BOUNDARY_PLUS_ONE = "plus_one"  # n → n+1
     BOUNDARY_MINUS_ONE = "minus_one"  # n → n-1
+    BOOL_TRUE_FALSE = "true_false"  # True ↔ False
+    MEMBERSHIP_IN = "in_not_in"  # in ↔ not in
+    IDENTITY_IS = "is_is_not"  # is ↔ is not
+    ARITHMETIC_ADD_SUB = "add_sub"  # + ↔ -
+    ARITHMETIC_MUL_DIV = "mul_div"  # * ↔ /
+    RETURN_NONE = "return_none"  # return x → return None
 
 
 @dataclass
@@ -65,6 +76,21 @@ class Injector:
         "or": "and",
     }
 
+    BOOL_LITERAL_SWAPS = {
+        "True": "False",
+        "False": "True",
+    }
+
+    ARITHMETIC_ADD_SUB_SWAPS = {
+        "+": "-",
+        "-": "+",
+    }
+
+    ARITHMETIC_MUL_DIV_SWAPS = {
+        "*": "/",
+        "/": "*",
+    }
+
     def __init__(self):
         """Initialize the parser with Python language."""
         self.language = Language(tspython.language())
@@ -102,9 +128,10 @@ class Injector:
         def visit(node):
             nonlocal site_id
 
-            # Comparison operators
+            # Comparison operators (including membership and identity)
             if node.type == "comparison_operator":
-                for child in node.children:
+                for i, child in enumerate(node.children):
+                    # Basic comparison swaps: <, >, <=, >=, ==, !=
                     if child.type in self.COMPARISON_SWAPS:
                         original = child.text.decode()
                         mutated = self.COMPARISON_SWAPS[original]
@@ -127,6 +154,74 @@ class Injector:
                                 end_point=child.end_point,
                                 original_text=original,
                                 mutated_text=mutated,
+                                context=get_context(child.start_byte, child.end_byte),
+                            )
+                        )
+                        site_id += 1
+
+                    # Membership: "in" → "not in"
+                    elif child.type == "in":
+                        sites.append(
+                            MutationSite(
+                                site_id=site_id,
+                                mutation_type=MutationType.MEMBERSHIP_IN,
+                                start_byte=child.start_byte,
+                                end_byte=child.end_byte,
+                                start_point=child.start_point,
+                                end_point=child.end_point,
+                                original_text="in",
+                                mutated_text="not in",
+                                context=get_context(child.start_byte, child.end_byte),
+                            )
+                        )
+                        site_id += 1
+
+                    # Membership: "not in" → "in" (parsed as single node type)
+                    elif child.type == "not in":
+                        sites.append(
+                            MutationSite(
+                                site_id=site_id,
+                                mutation_type=MutationType.MEMBERSHIP_IN,
+                                start_byte=child.start_byte,
+                                end_byte=child.end_byte,
+                                start_point=child.start_point,
+                                end_point=child.end_point,
+                                original_text="not in",
+                                mutated_text="in",
+                                context=get_context(child.start_byte, child.end_byte),
+                            )
+                        )
+                        site_id += 1
+
+                    # Identity: "is" → "is not"
+                    elif child.type == "is":
+                        sites.append(
+                            MutationSite(
+                                site_id=site_id,
+                                mutation_type=MutationType.IDENTITY_IS,
+                                start_byte=child.start_byte,
+                                end_byte=child.end_byte,
+                                start_point=child.start_point,
+                                end_point=child.end_point,
+                                original_text="is",
+                                mutated_text="is not",
+                                context=get_context(child.start_byte, child.end_byte),
+                            )
+                        )
+                        site_id += 1
+
+                    # Identity: "is not" → "is" (parsed as single node type)
+                    elif child.type == "is not":
+                        sites.append(
+                            MutationSite(
+                                site_id=site_id,
+                                mutation_type=MutationType.IDENTITY_IS,
+                                start_byte=child.start_byte,
+                                end_byte=child.end_byte,
+                                start_point=child.start_point,
+                                end_point=child.end_point,
+                                original_text="is not",
+                                mutated_text="is",
                                 context=get_context(child.start_byte, child.end_byte),
                             )
                         )
@@ -195,6 +290,89 @@ class Injector:
                         site_id += 1
                 except ValueError:
                     pass  # Skip non-decimal integers (hex, octal, etc.)
+
+            # Boolean literals (True/False)
+            elif node.type in ("true", "false"):
+                original = node.text.decode()
+                mutated = self.BOOL_LITERAL_SWAPS.get(original)
+                if mutated:
+                    sites.append(
+                        MutationSite(
+                            site_id=site_id,
+                            mutation_type=MutationType.BOOL_TRUE_FALSE,
+                            start_byte=node.start_byte,
+                            end_byte=node.end_byte,
+                            start_point=node.start_point,
+                            end_point=node.end_point,
+                            original_text=original,
+                            mutated_text=mutated,
+                            context=get_context(node.start_byte, node.end_byte),
+                        )
+                    )
+                    site_id += 1
+
+            # Binary operators: + ↔ -, * ↔ /
+            elif node.type == "binary_operator":
+                for child in node.children:
+                    original = child.text.decode() if child.text else ""
+
+                    # Addition/subtraction swap
+                    if original in self.ARITHMETIC_ADD_SUB_SWAPS:
+                        mutated = self.ARITHMETIC_ADD_SUB_SWAPS[original]
+                        sites.append(
+                            MutationSite(
+                                site_id=site_id,
+                                mutation_type=MutationType.ARITHMETIC_ADD_SUB,
+                                start_byte=child.start_byte,
+                                end_byte=child.end_byte,
+                                start_point=child.start_point,
+                                end_point=child.end_point,
+                                original_text=original,
+                                mutated_text=mutated,
+                                context=get_context(child.start_byte, child.end_byte),
+                            )
+                        )
+                        site_id += 1
+
+                    # Multiplication/division swap
+                    elif original in self.ARITHMETIC_MUL_DIV_SWAPS:
+                        mutated = self.ARITHMETIC_MUL_DIV_SWAPS[original]
+                        sites.append(
+                            MutationSite(
+                                site_id=site_id,
+                                mutation_type=MutationType.ARITHMETIC_MUL_DIV,
+                                start_byte=child.start_byte,
+                                end_byte=child.end_byte,
+                                start_point=child.start_point,
+                                end_point=child.end_point,
+                                original_text=original,
+                                mutated_text=mutated,
+                                context=get_context(child.start_byte, child.end_byte),
+                            )
+                        )
+                        site_id += 1
+
+            # Return statements: return x → return None
+            elif node.type == "return_statement":
+                # Only mutate if there's a return value (not bare "return")
+                if len(node.children) > 1:  # "return" keyword + value
+                    return_value = node.children[-1]
+                    # Skip if already returning None
+                    if return_value.text and return_value.text.decode() != "None":
+                        sites.append(
+                            MutationSite(
+                                site_id=site_id,
+                                mutation_type=MutationType.RETURN_NONE,
+                                start_byte=return_value.start_byte,
+                                end_byte=return_value.end_byte,
+                                start_point=return_value.start_point,
+                                end_point=return_value.end_point,
+                                original_text=return_value.text.decode(),
+                                mutated_text="None",
+                                context=get_context(node.start_byte, node.end_byte),
+                            )
+                        )
+                        site_id += 1
 
             # Recurse into children
             for child in node.children:
