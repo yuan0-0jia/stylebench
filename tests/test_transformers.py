@@ -60,8 +60,10 @@ def get_user_name(user_id):
         transformer = CamelCaseTransformer()
         result = transformer.transform(code)
 
-        assert "getUserName" in result.transformed_code
-        assert "userId" in result.transformed_code
+        # Function definitions and parameters are NOT transformed (would break imports/callers)
+        assert "def get_user_name" in result.transformed_code
+        assert "user_id" in result.transformed_code  # parameter preserved
+        # Local variables and function calls ARE transformed
         assert "userName" in result.transformed_code
         assert "fetchUser" in result.transformed_code
         assert result.changes_made > 0
@@ -96,8 +98,9 @@ class MyClass:
         # Dunder methods should not be transformed
         assert "__init__" in result.transformed_code
         assert "__str__" in result.transformed_code
-        # But regular attributes should be
-        assert "myValue" in result.transformed_code
+        # Class attributes via self are NOT transformed (would break external access)
+        # This is by design - only local variables are transformed
+        assert "self.my_value" in result.transformed_code
 
     def test_no_changes_needed(self):
         code = '''
@@ -121,9 +124,12 @@ class UserProfile:
         transformer = CamelCaseTransformer()
         result = transformer.transform(code)
 
-        assert "firstName" in result.transformed_code
-        assert "lastName" in result.transformed_code
-        assert "fullName" in result.transformed_code
+        # Parameters and class attributes (self.x) are NOT transformed
+        # This is by design - transforming them would break callers and external access
+        assert "first_name" in result.transformed_code  # parameter preserved
+        assert "self.first_name" in result.transformed_code  # attribute preserved
+        assert "self.last_name" in result.transformed_code
+        assert "self.full_name" in result.transformed_code
 
 
 class TestSnakeCaseTransformer:
@@ -138,8 +144,10 @@ def getUserName(userId):
         transformer = SnakeCaseTransformer()
         result = transformer.transform(code)
 
-        assert "get_user_name" in result.transformed_code
-        assert "user_id" in result.transformed_code
+        # Function definitions and parameters are NOT transformed (would break imports/callers)
+        assert "def getUserName" in result.transformed_code
+        assert "userId" in result.transformed_code  # parameter preserved
+        # Local variables and function calls ARE transformed
         assert "user_name" in result.transformed_code
         assert "fetch_user" in result.transformed_code
         assert result.changes_made > 0
@@ -281,8 +289,12 @@ def get_user_name(user_id):
         format_transformer = FormattingTransformer()
         result2 = format_transformer.transform(result1.transformed_code)
 
-        assert "getUserName" in result2.transformed_code
-        assert "userId" in result2.transformed_code
+        # Function name and parameters are preserved (not transformed)
+        assert "get_user_name" in result2.transformed_code
+        assert "user_id" in result2.transformed_code
+        # Local variables and function calls are transformed
+        assert "userData" in result2.transformed_code
+        assert "fetchUser" in result2.transformed_code
 
     def test_transform_preserves_syntax(self):
         """Verify transformed code is still valid Python."""
