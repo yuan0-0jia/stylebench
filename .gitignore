@@ -47,3 +47,6 @@ data/transformed/
 # Symlinks to stylebench-data repo
 data/camelcase
 data/badnames
+data/snakecase
+data/formatting
+data/original
