@@ -53,7 +53,8 @@ class RepoConfig:
             # Running from inside the repo - use uv run directly
             # Specify test directory explicitly for proper ignore handling
             test_path = str(repo_path / self.test_dir)
-            return ["uv", "run", "pytest", test_path, "-x", "-q", "--tb=short", "--color=no", *ignore_flags]
+            cmd = ["uv", "run", "pytest", test_path, "-x", "-q", "--tb=short", "--color=no"]
+            return cmd + ignore_flags
 
     def get_source_path(self, repo_path: Path) -> Path:
         """Get the source directory path."""

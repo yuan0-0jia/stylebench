@@ -21,7 +21,6 @@ Usage:
 
 import argparse
 import atexit
-import os
 import signal
 import sys
 from pathlib import Path
@@ -29,9 +28,8 @@ from pathlib import Path
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from bugs.catalog import generate_catalog
-from bugs.repo_config import REPO_CONFIGS
-
+from bugs.catalog import generate_catalog  # noqa: E402
+from bugs.repo_config import REPO_CONFIGS  # noqa: E402
 
 _cleanup_done = False
 

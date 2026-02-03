@@ -11,14 +11,15 @@ Features:
 """
 
 import json
-import os
-import signal
 import shutil
 import subprocess
 import tempfile
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
+
+from .injector import Injector, MutationSite, MutationType
+from .repo_config import RepoConfig, get_config
 
 
 def run_with_cleanup(cmd, cwd, timeout, capture_output=True, text=True):
@@ -37,9 +38,11 @@ def run_with_cleanup(cmd, cwd, timeout, capture_output=True, text=True):
 
     try:
         stdout, stderr = proc.communicate(timeout=timeout)
+
         # Create a result-like object
         class Result:
             pass
+
         result = Result()
         result.stdout = stdout or ""
         result.stderr = stderr or ""
@@ -54,9 +57,6 @@ def run_with_cleanup(cmd, cwd, timeout, capture_output=True, text=True):
         proc.kill()
         proc.wait()
         raise
-
-from .injector import Injector, MutationSite, MutationType
-from .repo_config import RepoConfig, get_config
 
 
 # Mutation types ordered by typical kill rate (highest first)
@@ -459,7 +459,8 @@ class CatalogGenerator:
 
             if progress_callback:
                 if baseline_failing:
-                    progress_callback(0, max_bugs, f"Baseline: {len(baseline_failing)} tests already failing")
+                    msg = f"Baseline: {len(baseline_failing)} tests already failing"
+                    progress_callback(0, max_bugs, msg)
                 else:
                     progress_callback(0, max_bugs, "Baseline: all tests pass")
 
@@ -500,7 +501,8 @@ class CatalogGenerator:
                 ))
 
             if progress_callback:
-                progress_callback(0, max_bugs, f"Processing {len(file_list)} files with {self.num_workers} workers")
+                msg = f"Processing {len(file_list)} files with {self.num_workers} workers"
+                progress_callback(0, max_bugs, msg)
 
             # Process files in parallel
             killed_results = []
