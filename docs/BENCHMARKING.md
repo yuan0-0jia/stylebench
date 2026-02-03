@@ -1,208 +1,94 @@
-# Benchmarking Guide
+# Quick Reference
 
-This guide explains how to run the full StyleBench benchmarking pipeline.
+Command reference for StyleBench. See [README.md](../README.md) for the full workflow.
 
-## Overview
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│ 1. SETUP - Clone target repo, install dependencies         │
-└─────────────────────────────────────────────────────────────┘
-                            ↓
-┌─────────────────────────────────────────────────────────────┐
-│ 2. INJECT - Find mutation sites, create buggy versions     │
-└─────────────────────────────────────────────────────────────┘
-                            ↓
-┌─────────────────────────────────────────────────────────────┐
-│ 3. VALIDATE - Run tests, check if mutations are detected   │
-└─────────────────────────────────────────────────────────────┘
-                            ↓
-┌─────────────────────────────────────────────────────────────┐
-│ 4. REPORT - Generate mutation score and JSON results       │
-└─────────────────────────────────────────────────────────────┘
-                            ↓
-┌─────────────────────────────────────────────────────────────┐
-│ 5. AGENT FIX - (Coming soon) Run agents on buggy code      │
-└─────────────────────────────────────────────────────────────┘
-```
-
-## Step 1: Setup Target Project
-
-Clone one of the target repositories into `data/original/`:
+## Style Transformation
 
 ```bash
-cd ~/stylebench/data/original
+# camelCase (requires --packages)
+python scripts/transform.py camelcase INPUT OUTPUT --packages PKG
 
-# Clone humanize (recommended for testing - fast, good coverage)
-git clone --depth 1 https://github.com/python-humanize/humanize.git
+# snakeCase (requires --packages)
+python scripts/transform.py snakecase INPUT OUTPUT --packages PKG
 
-# Or clone other targets:
-# git clone --depth 1 https://github.com/python-validators/validators.git
-# git clone --depth 1 https://github.com/more-itertools/more-itertools.git
-# git clone --depth 1 https://github.com/Python-Markdown/markdown.git
+# badnames (no --packages needed)
+python scripts/transform.py badnames INPUT OUTPUT
+
+# formatting
+python scripts/transform.py formatting INPUT OUTPUT --style compact|wide|pep8_strict
+
+# Options
+--dry-run       # Preview without writing
+--in-place      # Modify input directory
 ```
 
-Install the project's dependencies:
+## Bug Generation
 
 ```bash
-cd humanize
-uv venv --python 3.11
-uv pip install -e ".[tests]"
+# Single repo/style
+python scripts/generate_bugs.py REPO STYLE --count 50
 
-# Verify tests pass
-uv run pytest -q
+# All 20 combinations
+python scripts/generate_bugs.py --all --output ../stylebench-data/bugs/
+
+# Options
+--workers N     # Parallel workers (default: 2)
+--no-parallel   # Serial execution
 ```
 
-## Step 2: Find Mutation Sites
+## Repository Config
 
-Use the injector to find all mutable locations in the source code:
+| Repo | Source Dir | Test Command |
+|------|------------|--------------|
+| humanize | `src/humanize` | `uv run pytest tests/ -x -q` |
+| validators | `src/validators` | `uv run pytest tests/ -x -q` |
+| python-markdown | `markdown` | `uv run pytest tests/ -x -q` |
+| more-itertools | `more_itertools` | `uv run pytest tests/ -x -q` |
 
-```python
-from pathlib import Path
-from bugs.injector import list_mutation_sites, MutationType
+## Mutation Types
 
-# Load source file
-code = Path('data/original/humanize/src/humanize/time.py').read_text()
+| Type | Priority | Kill Rate |
+|------|----------|-----------|
+| `eq_ne` | 1 | Very high |
+| `var_swap` | 2 | High |
+| `true_false` | 3 | High |
+| `lt_gt` | 4 | Medium |
+| `le_ge` | 5 | Medium |
+| `and_or` | 6 | Medium |
+| `plus_one` | 7 | Medium |
+| `minus_one` | 8 | Medium |
 
-# Find all mutation sites
-sites = list_mutation_sites(code)
-print(f"Found {len(sites)} mutation sites")
+## Bug Catalog Files
 
-# View mutations by type
-for site in sites[:10]:
-    print(f"Line {site.start_point[0]+1}: {site.mutation_type.value}")
-    print(f"  '{site.original_text}' → '{site.mutated_text}'")
-    print(f"  Context: {site.context[:60]}...")
+```
+stylebench-data/bugs/
+├── humanize-original.json        # Full details (for scoring)
+├── humanize-original-agent.json  # Agent-visible only (no diff)
+├── humanize-camelcase.json
+├── humanize-camelcase-agent.json
+└── ...
 ```
 
-### Mutation Types
-
-| Type | Mutation | Example |
-|------|----------|---------|
-| `lt_gt` | `<` ↔ `>` | `if x < y` → `if x > y` |
-| `le_ge` | `<=` ↔ `>=` | `if x <= y` → `if x >= y` |
-| `eq_ne` | `==` ↔ `!=` | `if x == 0` → `if x != 0` |
-| `and_or` | `and` ↔ `or` | `if a and b` → `if a or b` |
-| `plus_one` | `n` → `n+1` | `range(10)` → `range(11)` |
-| `minus_one` | `n` → `n-1` | `range(10)` → `range(9)` |
-
-## Step 3: Apply a Single Mutation
+## Python API
 
 ```python
+# Bug injection
 from bugs.injector import list_mutation_sites, apply_mutation
-
-code = Path('data/original/humanize/src/humanize/time.py').read_text()
 sites = list_mutation_sites(code)
+mutated = apply_mutation(code, sites[0])
 
-# Apply first mutation
-mutated_code = apply_mutation(code, sites[0])
-
-# Show the diff
-print(f"Original: ...{sites[0].original_text}...")
-print(f"Mutated:  ...{sites[0].mutated_text}...")
-```
-
-## Step 4: Batch Validation
-
-The validator automatically tests multiple mutations:
-
-```python
+# Validation
 from bugs.validator import validate_mutations
+report = validate_mutations(repo_path, source_dir, max_mutations=50)
 
-report = validate_mutations(
-    repo_path='data/original/humanize',
-    source_dir='src/humanize',
-    max_mutations=50,      # Limit mutations to test
-    verbose=True           # Print progress
-)
+# Catalog generation
+from bugs.catalog import BugCatalogGenerator
+gen = BugCatalogGenerator(repo_path, source_dir, test_cmd)
+catalog = gen.generate(target_count=50)
+catalog.save('output.json')
 
-print(report.summary())
+# Style transformation
+from transformers import CamelCaseTransformer
+t = CamelCaseTransformer(project_packages={'pkg'})
+t.transform_directory('src/', 'output/')
 ```
-
-### Understanding Results
-
-- **Killed**: Mutation caused test failure (good - tests detect the bug)
-- **Survived**: Mutation did NOT cause test failure (bad - bug went undetected)
-- **Mutation Score**: `killed / (killed + survived)` - higher is better
-
-Example output:
-```
-Mutation Validation Report
-==========================
-Repository: /path/to/humanize
-Total mutations tested: 50
-  Killed: 48
-  Survived: 2
-Mutation score: 96.0%
-
-By mutation type:
-  and_or: 6/6 killed (100%)
-  eq_ne: 4/5 killed (80%)
-  lt_gt: 3/3 killed (100%)
-  minus_one: 17/18 killed (94%)
-  plus_one: 18/18 killed (100%)
-```
-
-## Step 5: Save Results
-
-Results are automatically saved to `data/results/`:
-
-```python
-from pathlib import Path
-
-# Save JSON report
-results_file = Path('data/results/humanize_validation.json')
-results_file.write_text(report.to_json())
-
-# Load later
-import json
-data = json.loads(results_file.read_text())
-```
-
-## Advanced: Custom Validation
-
-Use the `Validator` class for more control:
-
-```python
-from bugs.validator import Validator
-from bugs.injector import MutationType
-
-validator = Validator(
-    repo_path='data/original/humanize',
-    test_command=['uv', 'run', 'pytest', '-x', '-q'],  # Custom test command
-    timeout=120  # Timeout per test run
-)
-
-# Validate specific file
-results = validator.validate_file(
-    'src/humanize/time.py',
-    mutation_types=[MutationType.COMPARISON_LT_GT, MutationType.BOOLEAN_AND_OR],
-    max_mutations=10
-)
-
-# Validate entire repo
-report = validator.validate_repo(
-    source_dir='src/humanize',
-    file_pattern='*.py',
-    max_mutations_per_file=20,
-    max_total_mutations=100
-)
-```
-
-## Target Projects
-
-| Project | GitHub | LOC | Tests | Runtime |
-|---------|--------|-----|-------|---------|
-| humanize | [python-humanize/humanize](https://github.com/python-humanize/humanize) | 1,650 | 737 | 0.7s |
-| validators | [python-validators/validators](https://github.com/python-validators/validators) | 3,144 | 895 | 0.5s |
-| more-itertools | [more-itertools/more-itertools](https://github.com/more-itertools/more-itertools) | 6,822 | 701 | 9s |
-| python-markdown | [Python-Markdown/markdown](https://github.com/Python-Markdown/markdown) | 8,293 | 775 | 1.1s |
-
-## Next Steps
-
-The agent harness (coming soon) will:
-1. Inject a validated bug
-2. Capture test failure output
-3. Send to coding agent (Claude, GPT-4, etc.)
-4. Apply agent's fix
-5. Re-run tests to score success

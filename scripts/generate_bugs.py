@@ -14,9 +14,15 @@ Usage:
 
     # Save to data repo
     python scripts/generate_bugs.py --all --count 50 --output ../stylebench-data/bugs/
+
+    # Control parallelism (default: 2 workers)
+    python scripts/generate_bugs.py --all --count 50 --workers 1
 """
 
 import argparse
+import atexit
+import os
+import signal
 import sys
 from pathlib import Path
 
@@ -25,6 +31,42 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from bugs.catalog import generate_catalog
 from bugs.repo_config import REPO_CONFIGS
+
+
+_cleanup_done = False
+
+
+def cleanup_children():
+    """Kill any orphaned pytest child processes on exit."""
+    global _cleanup_done
+    if _cleanup_done:
+        return
+    _cleanup_done = True
+
+    # Kill pytest processes spawned by this script
+    import subprocess
+    try:
+        # Find and kill any pytest processes in stylebench-data
+        subprocess.run(
+            ["pkill", "-9", "-f", "pytest.*stylebench-data"],
+            capture_output=True,
+            timeout=5,
+        )
+    except Exception:
+        pass
+
+
+def signal_handler(signum, frame):
+    """Handle interrupt signals gracefully."""
+    print("\nInterrupted. Cleaning up...")
+    cleanup_children()
+    sys.exit(1)
+
+
+# Register cleanup handlers
+signal.signal(signal.SIGINT, signal_handler)
+signal.signal(signal.SIGTERM, signal_handler)
+atexit.register(cleanup_children)
 
 STYLES = ["original", "camelcase", "snakecase", "badnames", "formatting"]
 
@@ -36,6 +78,8 @@ def generate_for_variant(
     output_dir: Path | None,
     max_bugs: int,
     verbose: bool,
+    num_workers: int,
+    no_parallel: bool,
 ) -> dict:
     """Generate bugs for a single repo/style variant."""
     repo_path = data_dir / style / repo_name
@@ -53,6 +97,8 @@ def generate_for_variant(
             style=style,
             max_bugs=max_bugs,
             verbose=verbose,
+            num_workers=num_workers,
+            parallel=not no_parallel,
         )
 
         result = {
@@ -131,6 +177,17 @@ def main():
         action="store_true",
         help="Print detailed progress",
     )
+    parser.add_argument(
+        "--workers",
+        type=int,
+        default=2,
+        help="Number of parallel workers (default: 2, use 1 for sequential)",
+    )
+    parser.add_argument(
+        "--no-parallel",
+        action="store_true",
+        help="Force sequential mode (no repo copies, lower memory)",
+    )
 
     args = parser.parse_args()
 
@@ -179,6 +236,8 @@ def main():
                 output_dir=output_dir,
                 max_bugs=args.count,
                 verbose=args.verbose,
+                num_workers=args.workers,
+                no_parallel=args.no_parallel,
             )
             result["variant"] = f"{repo}/{style}"
             results.append(result)

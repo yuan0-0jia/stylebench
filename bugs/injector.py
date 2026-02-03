@@ -10,6 +10,7 @@ Implements semantic mutations:
 - Identity operators: is ↔ is not
 - Arithmetic operators: + ↔ -, * ↔ /
 - Return mutations: return x → return None
+- Variable swap: swap a variable with another in the same scope
 """
 
 from dataclasses import dataclass
@@ -34,6 +35,7 @@ class MutationType(Enum):
     ARITHMETIC_ADD_SUB = "add_sub"  # + ↔ -
     ARITHMETIC_MUL_DIV = "mul_div"  # * ↔ /
     RETURN_NONE = "return_none"  # return x → return None
+    VARIABLE_SWAP = "var_swap"  # swap variable with another in scope
 
 
 @dataclass
@@ -100,6 +102,56 @@ class Injector:
         """Parse source code and return the AST root."""
         tree = self.parser.parse(source_code.encode())
         return tree.root_node
+
+    def _get_function_params(self, func_node: Node) -> list[str]:
+        """Extract parameter names from a function definition."""
+        params = []
+        for child in func_node.children:
+            if child.type == "parameters":
+                for param in child.children:
+                    if param.type == "identifier":
+                        params.append(param.text.decode())
+                    elif param.type == "typed_parameter":
+                        # Get the identifier from typed parameter
+                        for p in param.children:
+                            if p.type == "identifier":
+                                params.append(p.text.decode())
+                                break
+                    elif param.type == "default_parameter":
+                        # Get the identifier from default parameter
+                        for p in param.children:
+                            if p.type == "identifier":
+                                params.append(p.text.decode())
+                                break
+                    elif param.type == "typed_default_parameter":
+                        # Get the identifier from typed default parameter
+                        for p in param.children:
+                            if p.type == "identifier":
+                                params.append(p.text.decode())
+                                break
+        return params
+
+    def _find_variable_usages(self, node: Node, var_names: set[str], usages: list):
+        """Find all usages of variables within a node (excluding definitions)."""
+        # Skip the parameters themselves and assignment targets
+        if node.type == "parameters":
+            return
+        if node.type == "assignment":
+            # Skip the left side (assignment target), only process right side
+            for i, child in enumerate(node.children):
+                if child.type == "identifier" and i == 0:
+                    continue  # Skip assignment target
+                self._find_variable_usages(child, var_names, usages)
+            return
+
+        if node.type == "identifier":
+            name = node.text.decode()
+            if name in var_names:
+                usages.append(node)
+            return
+
+        for child in node.children:
+            self._find_variable_usages(child, var_names, usages)
 
     def list_mutation_sites(self, source_code: str) -> list[MutationSite]:
         """
@@ -373,6 +425,43 @@ class Injector:
                             )
                         )
                         site_id += 1
+
+            # Variable swap mutations for function parameters
+            elif node.type == "function_definition":
+                params = self._get_function_params(node)
+                # Only create swap mutations if there are 2+ parameters
+                if len(params) >= 2:
+                    # Find the function body
+                    body = None
+                    for child in node.children:
+                        if child.type == "block":
+                            body = child
+                            break
+
+                    if body:
+                        # Find all usages of parameters in the body
+                        usages = []
+                        self._find_variable_usages(body, set(params), usages)
+
+                        # For each usage, create swap mutations with other params
+                        for usage in usages:
+                            original_name = usage.text.decode()
+                            for other_param in params:
+                                if other_param != original_name:
+                                    sites.append(
+                                        MutationSite(
+                                            site_id=site_id,
+                                            mutation_type=MutationType.VARIABLE_SWAP,
+                                            start_byte=usage.start_byte,
+                                            end_byte=usage.end_byte,
+                                            start_point=usage.start_point,
+                                            end_point=usage.end_point,
+                                            original_text=original_name,
+                                            mutated_text=other_param,
+                                            context=get_context(usage.start_byte, usage.end_byte),
+                                        )
+                                    )
+                                    site_id += 1
 
             # Recurse into children
             for child in node.children:
