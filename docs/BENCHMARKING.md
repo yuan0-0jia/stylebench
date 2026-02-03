@@ -26,7 +26,10 @@ python scripts/transform.py formatting INPUT OUTPUT --style compact|wide|pep8_st
 
 ```bash
 # Single repo/style
-python scripts/generate_bugs.py REPO STYLE --count 50
+python scripts/generate_bugs.py humanize camelcase --count 50
+
+# All 5 styles for one repo
+python scripts/generate_bugs.py humanize --all-styles --count 50
 
 # All 20 combinations
 python scripts/generate_bugs.py --all --output ../stylebench-data/bugs/
@@ -34,7 +37,13 @@ python scripts/generate_bugs.py --all --output ../stylebench-data/bugs/
 # Options
 --workers N     # Parallel workers (default: 2)
 --no-parallel   # Serial execution
+--count N       # Target bug count (default: 50)
+--output DIR    # Output directory
 ```
+
+**Repos**: `humanize`, `validators`, `python-markdown`, `more-itertools`
+
+**Styles**: `original`, `camelcase`, `snakecase`, `badnames`, `formatting`
 
 ## Repository Config
 

@@ -180,12 +180,19 @@ cd stylebench
 # Generate bugs for a single repo/style (30-50 validated bugs)
 python scripts/generate_bugs.py humanize camelcase --count 50
 
+# Generate for all 5 styles of one repo
+python scripts/generate_bugs.py humanize --all-styles --count 50
+
 # Generate for all 20 combinations
 python scripts/generate_bugs.py --all --output ../stylebench-data/bugs/
 
 # Serial execution (less memory)
 python scripts/generate_bugs.py --all --workers 1
 ```
+
+**Available repos**: `humanize`, `validators`, `python-markdown`, `more-itertools`
+
+**Available styles**: `original`, `camelcase`, `snakecase`, `badnames`, `formatting`
 
 ### Pre-Generated Bug Catalogs
 
