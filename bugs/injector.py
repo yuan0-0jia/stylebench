@@ -11,6 +11,7 @@ Implements semantic mutations:
 - Arithmetic operators: + ↔ -, * ↔ /
 - Return mutations: return x → return None
 - Variable swap: swap a variable with another in the same scope
+- If/else swap: swap if and else branch bodies
 """
 
 from dataclasses import dataclass
@@ -36,6 +37,7 @@ class MutationType(Enum):
     ARITHMETIC_MUL_DIV = "mul_div"  # * ↔ /
     RETURN_NONE = "return_none"  # return x → return None
     VARIABLE_SWAP = "var_swap"  # swap variable with another in scope
+    IF_ELSE_SWAP = "if_else_swap"  # swap if/else branch bodies
 
 
 @dataclass
@@ -425,6 +427,72 @@ class Injector:
                             )
                         )
                         site_id += 1
+
+            # If/else swap: swap bodies of if and else branches
+            elif node.type == "if_statement":
+                # Find the if block and else clause
+                if_block = None
+                else_clause = None
+                has_elif = False
+
+                for child in node.children:
+                    if child.type == "block" and if_block is None:
+                        if_block = child
+                    elif child.type == "elif_clause":
+                        has_elif = True
+                    elif child.type == "else_clause":
+                        else_clause = child
+
+                # Only handle simple if/else (no elif) to keep mutations clean
+                if if_block and else_clause and not has_elif:
+                    # Find the else block
+                    else_block = None
+                    for child in else_clause.children:
+                        if child.type == "block":
+                            else_block = child
+                            break
+
+                    if else_block:
+                        # Get the block contents (without leading/trailing whitespace issues)
+                        if_body = source_code[if_block.start_byte : if_block.end_byte]
+                        else_body = source_code[else_block.start_byte : else_block.end_byte]
+
+                        # Only create mutation if bodies are different
+                        if if_body.strip() != else_body.strip():
+                            # Build the swapped version:
+                            # Keep everything before if_block, put else_body,
+                            # keep middle (else keyword etc), put if_body
+                            original_stmt = source_code[node.start_byte : node.end_byte]
+
+                            # Calculate relative positions within the if statement
+                            if_block_rel_start = if_block.start_byte - node.start_byte
+                            if_block_rel_end = if_block.end_byte - node.start_byte
+                            else_block_rel_start = else_block.start_byte - node.start_byte
+                            else_block_rel_end = else_block.end_byte - node.start_byte
+
+                            # Build mutated statement by swapping block contents
+                            mutated_stmt = (
+                                original_stmt[:if_block_rel_start]
+                                + else_body
+                                + original_stmt[if_block_rel_end:else_block_rel_start]
+                                + if_body
+                                + original_stmt[else_block_rel_end:]
+                            )
+
+                            sites.append(
+                                MutationSite(
+                                    site_id=site_id,
+                                    mutation_type=MutationType.IF_ELSE_SWAP,
+                                    start_byte=node.start_byte,
+                                    end_byte=node.end_byte,
+                                    start_point=node.start_point,
+                                    end_point=node.end_point,
+                                    original_text=original_stmt,
+                                    mutated_text=mutated_stmt,
+                                    context=get_context(node.start_byte, node.end_byte),
+                                )
+                            )
+                            site_id += 1
 
             # Variable swap mutations for function parameters
             elif node.type == "function_definition":

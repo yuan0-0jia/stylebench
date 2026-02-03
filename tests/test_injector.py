@@ -164,6 +164,49 @@ def foo(x):
         assert len(sites) > 0
         assert sites[0].context != ""
 
+    def test_if_else_swap(self, injector):
+        """Test if/else swap mutation."""
+        code = '''def check(x):
+    if x > 0:
+        return "positive"
+    else:
+        return "negative"
+'''
+        sites = injector.list_mutation_sites(code)
+        if_else_sites = [s for s in sites if s.mutation_type == MutationType.IF_ELSE_SWAP]
+        assert len(if_else_sites) == 1
+
+        # Apply mutation and verify swap
+        mutated = injector.apply_mutation(code, if_else_sites[0])
+        assert '"negative"' in mutated.split("if x > 0:")[1].split("else:")[0]
+        assert '"positive"' in mutated.split("else:")[1]
+
+    def test_if_else_swap_skips_elif(self, injector):
+        """Test that if/elif/else chains don't create swap mutations."""
+        code = '''def check(x):
+    if x > 0:
+        return "positive"
+    elif x < 0:
+        return "negative"
+    else:
+        return "zero"
+'''
+        sites = injector.list_mutation_sites(code)
+        if_else_sites = [s for s in sites if s.mutation_type == MutationType.IF_ELSE_SWAP]
+        assert len(if_else_sites) == 0
+
+    def test_if_else_swap_skips_identical_bodies(self, injector):
+        """Test that identical if/else bodies don't create swap mutations."""
+        code = '''def check(x):
+    if x > 0:
+        return "same"
+    else:
+        return "same"
+'''
+        sites = injector.list_mutation_sites(code)
+        if_else_sites = [s for s in sites if s.mutation_type == MutationType.IF_ELSE_SWAP]
+        assert len(if_else_sites) == 0
+
 
 class TestModuleFunctions:
     """Test module-level convenience functions."""
