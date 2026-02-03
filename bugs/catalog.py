@@ -66,6 +66,7 @@ MUTATION_PRIORITY = [
     MutationType.VARIABLE_SWAP,          # var swap (high kill rate, interesting for badnames)
     MutationType.BOOL_TRUE_FALSE,        # True ↔ False (high kill rate)
     MutationType.RETURN_NONE,            # return x → None (high kill rate)
+    MutationType.IF_ELSE_SWAP,           # if/else swap (high kill rate)
     MutationType.BOOLEAN_AND_OR,         # and ↔ or (high kill rate)
     MutationType.COMPARISON_LT_GT,       # < ↔ > (medium-high)
     MutationType.COMPARISON_LE_GE,       # <= ↔ >= (medium-high)
