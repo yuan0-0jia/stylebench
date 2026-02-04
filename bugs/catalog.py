@@ -221,12 +221,10 @@ def _test_file_mutations_worker(args: tuple) -> list[dict]:
             # Write mutated code
             file_path.write_text(mutated_code)
 
-            # Run tests (workers are separate processes, cleanup handled by main)
-            result = subprocess.run(
+            # Run tests with proper cleanup on timeout
+            result = run_with_cleanup(
                 test_command,
                 cwd=worker_repo,
-                capture_output=True,
-                text=True,
                 timeout=timeout,
             )
             output = result.stdout + result.stderr
