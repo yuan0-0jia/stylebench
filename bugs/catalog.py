@@ -8,9 +8,13 @@ Generates bug catalogs that separate:
 Features:
 - Parallel mutation testing using worker processes
 - Smart mutation ordering (high kill-rate types first)
+- Process group management for clean subprocess termination
 """
 
+import atexit
 import json
+import os
+import signal
 import shutil
 import subprocess
 import tempfile
@@ -22,11 +26,55 @@ from .injector import Injector, MutationSite, MutationType
 from .repo_config import RepoConfig, get_config
 
 
+# Track active subprocesses for cleanup
+_active_processes: set[subprocess.Popen] = set()
+
+
+def _cleanup_all_processes():
+    """Kill all tracked subprocess on exit."""
+    for proc in list(_active_processes):
+        try:
+            if proc.poll() is None:  # Still running
+                # Kill the entire process group
+                try:
+                    os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
+                except (ProcessLookupError, PermissionError, OSError):
+                    pass
+                proc.kill()
+                proc.wait()
+        except Exception:
+            pass
+    _active_processes.clear()
+
+
+# Register cleanup on exit
+atexit.register(_cleanup_all_processes)
+
+
+def _signal_handler(signum, frame):
+    """Handle interrupt signals by cleaning up subprocesses."""
+    _cleanup_all_processes()
+    # Re-raise the signal to allow normal termination
+    signal.signal(signum, signal.SIG_DFL)
+    os.kill(os.getpid(), signum)
+
+
+# Install signal handlers for common termination signals
+for sig in (signal.SIGTERM, signal.SIGINT):
+    try:
+        signal.signal(sig, _signal_handler)
+    except (ValueError, OSError):
+        pass  # Can't set handler in some contexts (e.g., non-main thread)
+
+
 def run_with_cleanup(cmd, cwd, timeout, capture_output=True, text=True):
     """
     Run a subprocess with proper cleanup on timeout/interrupt.
 
-    Uses Popen for better control over process lifecycle.
+    Uses Popen with process groups for reliable cleanup:
+    - Creates subprocess in new process group (start_new_session=True)
+    - Kills entire process group on timeout/error
+    - Tracks process for cleanup on parent termination
     """
     proc = subprocess.Popen(
         cmd,
@@ -34,7 +82,10 @@ def run_with_cleanup(cmd, cwd, timeout, capture_output=True, text=True):
         stdout=subprocess.PIPE if capture_output else None,
         stderr=subprocess.PIPE if capture_output else None,
         text=text,
+        start_new_session=True,  # Create new process group
     )
+
+    _active_processes.add(proc)
 
     try:
         stdout, stderr = proc.communicate(timeout=timeout)
@@ -49,14 +100,25 @@ def run_with_cleanup(cmd, cwd, timeout, capture_output=True, text=True):
         result.returncode = proc.returncode
         return result
     except subprocess.TimeoutExpired:
-        # Kill the process and all its children
+        # Kill the entire process group
+        try:
+            os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
+        except (ProcessLookupError, PermissionError, OSError):
+            pass
         proc.kill()
         proc.wait()
         raise
     except Exception:
+        # Kill the entire process group
+        try:
+            os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
+        except (ProcessLookupError, PermissionError, OSError):
+            pass
         proc.kill()
         proc.wait()
         raise
+    finally:
+        _active_processes.discard(proc)
 
 
 # Mutation types ordered by typical kill rate (highest first)
@@ -166,6 +228,35 @@ class BugCatalog:
         return catalog
 
 
+def _is_test_related_to_file(test_name: str, source_file_path: str) -> bool:
+    """Check if a test is likely related to a source file.
+
+    Uses heuristics to match test files to source files:
+    - test_foo.py tests foo.py
+    - test_module.py::TestClass tests module.py
+    """
+    source_file = Path(source_file_path)
+    source_module = source_file.stem.lower()
+
+    test_path = test_name.split("::")[0]
+    test_file = Path(test_path).stem.lower()
+
+    if test_file.startswith("test_"):
+        test_module = test_file[5:]
+    else:
+        test_module = test_file
+
+    if source_module == test_module:
+        return True
+    if source_module in test_module or test_module in source_module:
+        return True
+    if "::" in test_name:
+        test_class = test_name.split("::")[1].lower()
+        if source_module in test_class:
+            return True
+    return False
+
+
 def _test_file_mutations_worker(args: tuple) -> list[dict]:
     """
     Worker function for parallel mutation testing.
@@ -240,12 +331,22 @@ def _test_file_mutations_worker(args: tuple) -> list[dict]:
             # Only count as killed if there are NEW failures (not baseline failures)
             new_failures = [t for t in failing_tests if t not in baseline_failing]
 
-            if exit_code != 0 and new_failures:
+            # Filter to prefer failures related to the mutated file
+            related_failures = [
+                t for t in new_failures
+                if _is_test_related_to_file(t, file_rel_path)
+            ]
+
+            # Fallback: if no directly related tests, accept all new failures
+            if not related_failures and new_failures:
+                related_failures = new_failures
+
+            if exit_code != 0 and related_failures:
                 results.append({
                     "file_path": file_rel_path,
                     "site_data": site_data,
                     "test_output": output,
-                    "failing_tests": new_failures,
+                    "failing_tests": related_failures,
                     "exit_code": exit_code,
                 })
 
@@ -316,12 +417,56 @@ class CatalogGenerator:
         except Exception as e:
             return -1, f"ERROR: {e}", []
 
+    def _is_test_related_to_file(self, test_name: str, source_file: Path) -> bool:
+        """Check if a test is likely related to a source file.
+
+        Uses heuristics to match test files to source files:
+        - test_foo.py tests foo.py
+        - test_module.py::TestClass tests module.py
+        """
+        # Extract module name from source file (e.g., "number" from "src/humanize/number.py")
+        source_module = source_file.stem.lower()
+
+        # Extract test file from test name (e.g., "test_number" from "tests/test_number.py::...")
+        test_path = test_name.split("::")[0]
+        test_file = Path(test_path).stem.lower()
+
+        # Remove "test_" prefix from test file name
+        if test_file.startswith("test_"):
+            test_module = test_file[5:]
+        else:
+            test_module = test_file
+
+        # Check for direct match
+        if source_module == test_module:
+            return True
+
+        # Check for partial match (e.g., "number" in "test_number_utils")
+        if source_module in test_module or test_module in source_module:
+            return True
+
+        # Check class name in test path for more specific matching
+        if "::" in test_name:
+            test_class = test_name.split("::")[1].lower()
+            if source_module in test_class:
+                return True
+
+        return False
+
     def generate_bug(
-        self, file_path: Path, site: MutationSite, bug_number: int
+        self, file_path: Path, site: MutationSite, bug_number: int,
+        baseline_failing: set[str] | None = None,
     ) -> tuple[BugEntry, HiddenMetadata] | None:
         """
         Generate a single bug entry by applying mutation and running tests.
         (Sequential version for compatibility)
+
+        Args:
+            file_path: Path to the source file to mutate.
+            site: Mutation site to apply.
+            bug_number: Sequential bug number for ID generation.
+            baseline_failing: Set of test names that fail without mutation.
+                             If None, any failure is accepted (legacy behavior).
         """
         original_code = file_path.read_text()
         mutated_code = self.injector.apply_mutation(original_code, site)
@@ -330,13 +475,31 @@ class CatalogGenerator:
             file_path.write_text(mutated_code)
             exit_code, output, failing_tests = self.run_tests()
 
-            if exit_code != 0 and failing_tests:
+            # Only count as killed if there are NEW failures (not baseline failures)
+            if baseline_failing is not None:
+                new_failures = [t for t in failing_tests if t not in baseline_failing]
+            else:
+                new_failures = failing_tests
+
+            # Filter to prefer failures that are related to the mutated file
+            # This filters out flaky/unrelated test failures when possible
+            related_failures = [
+                t for t in new_failures
+                if self._is_test_related_to_file(t, file_path)
+            ]
+
+            # Fallback: if no directly related tests found, accept all new failures
+            # This handles projects where test names don't match source names
+            if not related_failures and new_failures:
+                related_failures = new_failures
+
+            if exit_code != 0 and related_failures:
                 bug_id = f"{self.repo_name}-{self.style}-{bug_number:03d}"
 
                 bug_entry = BugEntry(
                     bug_id=bug_id,
                     test_output=output,
-                    failing_tests=failing_tests,
+                    failing_tests=related_failures,  # Only related failures caused by mutation
                     exit_code=exit_code,
                 )
 
@@ -613,6 +776,20 @@ class CatalogGenerator:
         files = sorted(source_path.glob(file_pattern))
         files = [f for f in files if "__pycache__" not in str(f)]
 
+        # Run baseline tests to find pre-existing failures
+        if progress_callback:
+            progress_callback(0, max_bugs, "Running baseline tests...")
+
+        _, _, baseline_failing_list = self.run_tests()
+        baseline_failing = set(baseline_failing_list)
+
+        if progress_callback:
+            if baseline_failing:
+                msg = f"Baseline: {len(baseline_failing)} tests already failing"
+                progress_callback(0, max_bugs, msg)
+            else:
+                progress_callback(0, max_bugs, "Baseline: all tests pass")
+
         # Collect all mutation sites
         all_sites: list[tuple[Path, MutationSite]] = []
         for file_path in files:
@@ -633,7 +810,7 @@ class CatalogGenerator:
             if len(catalog.bugs) >= max_bugs:
                 break
 
-            result = self.generate_bug(file_path, site, bug_number)
+            result = self.generate_bug(file_path, site, bug_number, baseline_failing)
 
             if result:
                 bug_entry, hidden = result

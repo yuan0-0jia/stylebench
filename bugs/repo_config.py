@@ -39,21 +39,23 @@ class RepoConfig:
             for pattern in self.ignore_patterns:
                 ignore_flags.extend(["--ignore", str(repo_path / pattern)])
 
+        # Always use --with pytest to ensure pytest is available
+        # Many repos don't include pytest in their optional-dependencies
+        deps = ["--with", "pytest"]
+        for dep in self.test_deps:
+            deps.extend(["--with", dep])
+
+        test_path = str(repo_path / self.test_dir)
+
         if external:
-            # Running from outside the repo - use --with to install deps
-            deps = ["--with", "pytest"]
-            for dep in self.test_deps:
-                deps.extend(["--with", dep])
-            test_path = str(repo_path / self.test_dir)
+            # Running from outside the repo
             return [
-                "uv", "run", *deps, "pytest", test_path,
+                "uv", "run", *deps, "python", "-m", "pytest", test_path,
                 "-x", "-q", "--tb=short", "--color=no", *ignore_flags
             ]
         else:
-            # Running from inside the repo - use uv run directly
-            # Specify test directory explicitly for proper ignore handling
-            test_path = str(repo_path / self.test_dir)
-            cmd = ["uv", "run", "pytest", test_path, "-x", "-q", "--tb=short", "--color=no"]
+            # Running from inside the repo
+            cmd = ["uv", "run", *deps, "python", "-m", "pytest", test_path, "-x", "-q", "--tb=short", "--color=no"]
             return cmd + ignore_flags
 
     def get_source_path(self, repo_path: Path) -> Path:

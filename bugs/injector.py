@@ -347,23 +347,37 @@ class Injector:
 
             # Boolean literals (True/False)
             elif node.type in ("true", "false"):
-                original = node.text.decode()
-                mutated = self.BOOL_LITERAL_SWAPS.get(original)
-                if mutated:
-                    sites.append(
-                        MutationSite(
-                            site_id=site_id,
-                            mutation_type=MutationType.BOOL_TRUE_FALSE,
-                            start_byte=node.start_byte,
-                            end_byte=node.end_byte,
-                            start_point=node.start_point,
-                            end_point=node.end_point,
-                            original_text=original,
-                            mutated_text=mutated,
-                            context=get_context(node.start_byte, node.end_byte),
+                # Skip boolean literals in module-level constant assignments
+                # like TYPE_CHECKING = False, DEBUG = True, etc.
+                skip = False
+                parent = node.parent
+                if parent and parent.type == "assignment":
+                    # Check if left side is an ALL_CAPS identifier (constant)
+                    for child in parent.children:
+                        if child.type == "identifier":
+                            name = child.text.decode() if child.text else ""
+                            if name.isupper() or name in ("TYPE_CHECKING", "DEBUG", "TESTING"):
+                                skip = True
+                                break
+
+                if not skip:
+                    original = node.text.decode()
+                    mutated = self.BOOL_LITERAL_SWAPS.get(original)
+                    if mutated:
+                        sites.append(
+                            MutationSite(
+                                site_id=site_id,
+                                mutation_type=MutationType.BOOL_TRUE_FALSE,
+                                start_byte=node.start_byte,
+                                end_byte=node.end_byte,
+                                start_point=node.start_point,
+                                end_point=node.end_point,
+                                original_text=original,
+                                mutated_text=mutated,
+                                context=get_context(node.start_byte, node.end_byte),
+                            )
                         )
-                    )
-                    site_id += 1
+                        site_id += 1
 
             # Binary operators: + ↔ -, * ↔ /
             elif node.type == "binary_operator":
