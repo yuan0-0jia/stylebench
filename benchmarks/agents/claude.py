@@ -49,7 +49,8 @@ class ClaudeAgent(Agent):
             Prompt string for Claude Code.
         """
         # Base prompt with test failure info
-        prompt = f"""The tests in this repository are failing. Use your tools to find and fix the bug.
+        prompt = f"""The tests in this repository are failing.
+Use your tools to find and fix the bug.
 
 Test failure output:
 {context.test_output}

@@ -12,7 +12,6 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from benchmarks.evaluator import (
     apply_bug,
     create_working_copy,
-    get_bug_by_id,
     load_bug_catalog,
     run_tests,
 )

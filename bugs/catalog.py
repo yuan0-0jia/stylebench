@@ -14,8 +14,8 @@ Features:
 import atexit
 import json
 import os
-import signal
 import shutil
+import signal
 import subprocess
 import tempfile
 from concurrent.futures import ProcessPoolExecutor, as_completed
@@ -24,7 +24,6 @@ from pathlib import Path
 
 from .injector import Injector, MutationSite, MutationType
 from .repo_config import RepoConfig, get_config
-
 
 # Track active subprocesses for cleanup
 _active_processes: set[subprocess.Popen] = set()

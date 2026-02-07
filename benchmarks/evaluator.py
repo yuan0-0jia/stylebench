@@ -9,15 +9,14 @@ Provides functions to:
 import atexit
 import json
 import os
-import signal
 import shutil
+import signal
 import subprocess
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
 from bugs.repo_config import get_config
-
 
 # Track active subprocesses for cleanup
 _active_processes: set[subprocess.Popen] = set()

@@ -55,7 +55,10 @@ class RepoConfig:
             ]
         else:
             # Running from inside the repo
-            cmd = ["uv", "run", *deps, "python", "-m", "pytest", test_path, "-x", "-q", "--tb=short", "--color=no"]
+            cmd = [
+                "uv", "run", *deps, "python", "-m", "pytest", test_path,
+                "-x", "-q", "--tb=short", "--color=no",
+            ]
             return cmd + ignore_flags
 
     def get_source_path(self, repo_path: Path) -> Path:
