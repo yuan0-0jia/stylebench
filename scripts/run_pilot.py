@@ -8,7 +8,6 @@ Sequential execution with delays to avoid rate limits.
 import gc
 import json
 import subprocess
-import sys
 import time
 from datetime import datetime
 from pathlib import Path
@@ -20,9 +19,8 @@ BUGS_PER_STYLE = 10
 DELAY_BETWEEN_TRIALS = 2  # seconds
 DELAY_BETWEEN_REPOS = 10  # seconds
 
-# Single repo for pilot study (100 trials total)
-# Full benchmark will cover all repos
-REPOS = ["humanize"]
+# Repos to test (excluding humanize which achieved 100%)
+REPOS = ["validators", "python-markdown", "more-itertools"]
 STYLES = ["original", "camelcase", "snakecase", "badnames", "formatting"]
 MODES = ["with_tests", "without_tests"]
 
@@ -91,7 +89,8 @@ def main():
     current = 0
 
     print(f"Starting pilot study: {total_batches} batches")
-    print(f"  {BUGS_PER_STYLE} bugs × {len(STYLES)} styles × {len(MODES)} modes × {len(REPOS)} repos")
+    n_styles, n_modes, n_repos = len(STYLES), len(MODES), len(REPOS)
+    print(f"  {BUGS_PER_STYLE} bugs × {n_styles} styles × {n_modes} modes × {n_repos} repos")
     print(f"  Total trials: {BUGS_PER_STYLE * len(STYLES) * len(MODES) * len(REPOS)}")
     print()
 
@@ -133,7 +132,7 @@ def main():
     with open(summary_path, "w") as f:
         json.dump(summary, f, indent=2)
 
-    print(f"\nPilot study complete!")
+    print("\nPilot study complete!")
     print(f"Results saved to: {RESULTS_DIR}")
     print(f"Summary: {summary_path}")
 
