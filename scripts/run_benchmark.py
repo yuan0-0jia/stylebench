@@ -5,14 +5,18 @@ Features:
 - Tracks per-bug progress so partial batches are preserved
 - Detects rate limit errors and exits gracefully
 - Resumes from where it left off, only re-running incomplete bugs
+- Supports multiple agents (claude, gemini) with separate state/results
 - Configurable delays between trials
 
 Usage:
-    # Start or resume benchmark
+    # Start or resume benchmark (default: claude)
     python scripts/run_benchmark.py
 
+    # Run with gemini agent
+    python scripts/run_benchmark.py --agent gemini
+
     # Reset progress and start fresh
-    python scripts/run_benchmark.py --reset
+    python scripts/run_benchmark.py --agent gemini --reset
 
     # Run specific repos only
     python scripts/run_benchmark.py --repos python-markdown more-itertools
@@ -31,8 +35,6 @@ from pathlib import Path
 
 # Configuration
 DATA_DIR = Path("/Users/yuan/stylebench-data")
-RESULTS_DIR = DATA_DIR / "results" / "benchmark"
-STATE_FILE = RESULTS_DIR / "benchmark_state.json"
 BUGS_PER_STYLE = 10
 DELAY_BETWEEN_TRIALS = 2  # seconds
 DELAY_BETWEEN_BATCHES = 5  # seconds
@@ -41,11 +43,38 @@ ALL_REPOS = ["humanize", "validators", "python-markdown", "more-itertools"]
 ALL_STYLES = ["original", "camelcase", "snakecase", "badnames", "formatting"]
 ALL_MODES = ["with_tests", "without_tests"]
 
+# Universal rate limit patterns (covers Claude, Gemini, OpenAI, and most AI APIs)
+RATE_LIMIT_PATTERNS = [
+    "hit your limit",  # Claude
+    "rate limit",  # Generic / Gemini
+    "resource_exhausted",  # Gemini / gRPC
+    "quota exceeded",  # Gemini / Google
+    "quota metric",  # Google Cloud
+    "too many requests",  # HTTP 429 standard
+    "429",  # HTTP status code
+    "request limit reached",  # OpenAI
+    "tokens per min",  # OpenAI TPM
+    "requests per min",  # OpenAI RPM
+]
 
-def load_state() -> dict:
+
+def _get_dirs(agent: str) -> tuple[Path, Path]:
+    """Return (results_dir, state_file) for an agent."""
+    results_dir = DATA_DIR / "results" / f"benchmark_{agent}"
+    state_file = results_dir / "benchmark_state.json"
+    return results_dir, state_file
+
+
+def is_rate_limited(output: str) -> bool:
+    """Check if output indicates a rate limit from any AI provider."""
+    output_lower = output.lower()
+    return any(pattern in output_lower for pattern in RATE_LIMIT_PATTERNS)
+
+
+def load_state(state_file: Path) -> dict:
     """Load progress state from file."""
-    if STATE_FILE.exists():
-        with open(STATE_FILE) as f:
+    if state_file.exists():
+        with open(state_file) as f:
             return json.load(f)
     return _empty_state()
 
@@ -61,11 +90,11 @@ def _empty_state() -> dict:
     }
 
 
-def save_state(state: dict):
+def save_state(state: dict, state_file: Path, results_dir: Path):
     """Save progress state to file."""
     state["last_updated"] = datetime.now().isoformat()
-    RESULTS_DIR.mkdir(parents=True, exist_ok=True)
-    with open(STATE_FILE, "w") as f:
+    results_dir.mkdir(parents=True, exist_ok=True)
+    with open(state_file, "w") as f:
         json.dump(state, f, indent=2)
 
 
@@ -110,7 +139,9 @@ def parse_result_file(result_file: Path) -> list[dict]:
         bug_id = trial.get("bug_id", "")
         evaluation = trial.get("evaluation", "ERROR")
         output = trial.get("fix_result", {}).get("agent_output", "") or ""
-        rate_limited = "hit your limit" in output.lower()
+        error = trial.get("fix_result", {}).get("error", "") or ""
+        # Only count as rate-limited if the agent also failed to fix the bug
+        rate_limited = evaluation != "PASS" and is_rate_limited(output + " " + error)
         parsed.append(
             {
                 "bug_id": bug_id,
@@ -121,10 +152,10 @@ def parse_result_file(result_file: Path) -> list[dict]:
     return parsed
 
 
-def find_result_file_after(timestamp: float) -> Path | None:
+def find_result_file_after(results_dir: Path, timestamp: float) -> Path | None:
     """Find the newest result file created after `timestamp`."""
     candidates = []
-    for f in RESULTS_DIR.glob("results_*.json"):
+    for f in results_dir.glob("results_*.json"):
         if f.stat().st_mtime >= timestamp:
             candidates.append(f)
     if candidates:
@@ -132,7 +163,14 @@ def find_result_file_after(timestamp: float) -> Path | None:
     return None
 
 
-def run_batch(repo: str, style: str, mode: str, bug_ids: list[str]) -> tuple[list[dict], bool]:
+def run_batch(
+    agent: str,
+    repo: str,
+    style: str,
+    mode: str,
+    bug_ids: list[str],
+    results_dir: Path,
+) -> tuple[list[dict], bool]:
     """Run a batch for specific bug IDs.
 
     Returns (parsed_results, had_rate_limit).
@@ -161,11 +199,11 @@ def run_batch(repo: str, style: str, mode: str, bug_ids: list[str]) -> tuple[lis
         "--repo-name",
         repo,
         "--agent",
-        "claude",
+        agent,
         "--mode",
         mode,
         "--output-dir",
-        str(RESULTS_DIR),
+        str(results_dir),
         "--quiet",
         "--bugs",
         *bug_ids,
@@ -181,7 +219,7 @@ def run_batch(repo: str, style: str, mode: str, bug_ids: list[str]) -> tuple[lis
             timeout=1800,  # 30 min max per batch
         )
 
-        result_file = find_result_file_after(before)
+        result_file = find_result_file_after(results_dir, before)
         if result_file is None:
             return [], False
 
@@ -208,6 +246,7 @@ def record_results(state: dict, mode: str, parsed: list[dict]):
 
 def main():
     parser = argparse.ArgumentParser(description="Run benchmark with rate limit handling")
+    parser.add_argument("--agent", default="claude", help="Agent to use (claude, gemini)")
     parser.add_argument("--reset", action="store_true", help="Reset progress and start fresh")
     parser.add_argument("--repos", nargs="+", default=ALL_REPOS, help="Repos to test")
     parser.add_argument("--styles", nargs="+", default=ALL_STYLES, help="Styles to test")
@@ -215,16 +254,17 @@ def main():
     parser.add_argument("--limit", type=int, default=BUGS_PER_STYLE, help="Bugs per batch")
     args = parser.parse_args()
 
-    RESULTS_DIR.mkdir(parents=True, exist_ok=True)
+    results_dir, state_file = _get_dirs(args.agent)
+    results_dir.mkdir(parents=True, exist_ok=True)
 
     # Load or reset state
     if args.reset:
         state = _empty_state()
         state["started_at"] = datetime.now().isoformat()
-        save_state(state)
+        save_state(state, state_file, results_dir)
         print("Progress reset.")
     else:
-        state = load_state()
+        state = load_state(state_file)
         # Migrate old state format if needed
         if "completed_bugs" not in state:
             state["completed_bugs"] = {}
@@ -233,7 +273,7 @@ def main():
 
     if state.get("started_at") is None:
         state["started_at"] = datetime.now().isoformat()
-        save_state(state)
+        save_state(state, state_file, results_dir)
 
     # Build list of batches
     all_batches = [
@@ -246,13 +286,14 @@ def main():
     # Count total completed bugs across all modes
     total_done_bugs = sum(len(bugs) for bugs in state.get("completed_bugs", {}).values())
 
-    print("Benchmark Progress")
+    print(f"Benchmark Progress ({args.agent})")
     print("=" * 60)
+    print(f"Agent: {args.agent}")
     print(f"Total batches: {len(all_batches)}")
     print(f"Fully completed batches: {len(all_batches) - len(pending)}")
     print(f"Batches with remaining work: {len(pending)}")
     print(f"Individual bugs completed: {total_done_bugs}")
-    print(f"Results dir: {RESULTS_DIR}")
+    print(f"Results dir: {results_dir}")
     print()
 
     if not pending:
@@ -298,7 +339,7 @@ def main():
 
         # Update state
         state["current"] = [repo, style, mode]
-        save_state(state)
+        save_state(state, state_file, results_dir)
 
         # Show progress
         batch_num += 1
@@ -316,12 +357,12 @@ def main():
                 flush=True,
             )
 
-        parsed, had_rate_limit = run_batch(repo, style, mode, remaining)
+        parsed, had_rate_limit = run_batch(args.agent, repo, style, mode, remaining, results_dir)
 
         # Record the successful results (even if batch was partially rate-limited)
         if parsed:
             record_results(state, mode, parsed)
-            save_state(state)
+            save_state(state, state_file, results_dir)
 
         succeeded = sum(1 for r in parsed if not r["rate_limited"])
         rate_limited_count = sum(1 for r in parsed if r["rate_limited"])
@@ -330,7 +371,7 @@ def main():
             print(f"RATE LIMITED ({succeeded} ok, {rate_limited_count} limited)")
             state["rate_limited_at"] = datetime.now().isoformat()
             state["current"] = None
-            save_state(state)
+            save_state(state, state_file, results_dir)
             print()
             print("Rate limit detected. Partial progress saved.")
             print(f"Individual bugs completed: {_count_done(state)}")
@@ -351,12 +392,12 @@ def main():
             time.sleep(DELAY_BETWEEN_BATCHES)
 
     state["current"] = None
-    save_state(state)
+    save_state(state, state_file, results_dir)
 
     print()
     print("Benchmark complete!")
     print(f"Individual bugs completed: {_count_done(state)}")
-    print(f"Results saved to: {RESULTS_DIR}")
+    print(f"Results saved to: {results_dir}")
 
 
 def _count_done(state: dict) -> int:

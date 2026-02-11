@@ -16,26 +16,48 @@ import argparse
 import sys
 from pathlib import Path
 
-from .agents import ClaudeAgent
+from .agents import ClaudeAgent, GeminiAgent
 from .harness import BenchmarkHarness
+
+# Agent registry: name -> (class, supported kwargs)
+AGENT_REGISTRY = {
+    "claude": ClaudeAgent,
+    "gemini": GeminiAgent,
+}
 
 
 def get_agent(name: str, timeout: int = 300, max_turns: int = 10, model: str | None = None):
     """Get an agent by name.
 
     Args:
-        name: Agent name ('claude').
+        name: Agent name (see AGENT_REGISTRY).
         timeout: Timeout in seconds.
-        max_turns: Maximum agentic turns.
+        max_turns: Maximum agentic turns (agent-specific, ignored if unsupported).
         model: Model to use.
 
     Returns:
         Agent instance.
     """
-    if name == "claude":
-        return ClaudeAgent(timeout=timeout, max_turns=max_turns, model=model)
-    else:
-        raise ValueError(f"Unknown agent: {name}. Available: claude")
+    if name not in AGENT_REGISTRY:
+        available = ", ".join(AGENT_REGISTRY)
+        raise ValueError(f"Unknown agent: {name}. Available: {available}")
+
+    cls = AGENT_REGISTRY[name]
+
+    # Build kwargs based on what the agent's __init__ accepts
+    import inspect
+
+    sig = inspect.signature(cls.__init__)
+    params = set(sig.parameters.keys()) - {"self"}
+    kwargs = {}
+    if "timeout" in params:
+        kwargs["timeout"] = timeout
+    if "max_turns" in params:
+        kwargs["max_turns"] = max_turns
+    if "model" in params and model is not None:
+        kwargs["model"] = model
+
+    return cls(**kwargs)
 
 
 def main():
@@ -197,11 +219,11 @@ def main():
         print("=" * 60)
 
         print(f"Total trials: {len(results)}")
-        print(f"  PASS:    {passed:3d} ({100*passed/len(results):.1f}%)")
-        print(f"  FAIL:    {failed:3d} ({100*failed/len(results):.1f}%)")
-        print(f"  NO_FIX:  {no_fix:3d} ({100*no_fix/len(results):.1f}%)")
-        print(f"  ERROR:   {errors:3d} ({100*errors/len(results):.1f}%)")
-        print(f"  TIMEOUT: {timeouts:3d} ({100*timeouts/len(results):.1f}%)")
+        print(f"  PASS:    {passed:3d} ({100 * passed / len(results):.1f}%)")
+        print(f"  FAIL:    {failed:3d} ({100 * failed / len(results):.1f}%)")
+        print(f"  NO_FIX:  {no_fix:3d} ({100 * no_fix / len(results):.1f}%)")
+        print(f"  ERROR:   {errors:3d} ({100 * errors / len(results):.1f}%)")
+        print(f"  TIMEOUT: {timeouts:3d} ({100 * timeouts / len(results):.1f}%)")
         print()
         print(f"Results saved to: {output_path}")
 
