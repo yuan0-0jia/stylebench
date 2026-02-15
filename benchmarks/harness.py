@@ -1,10 +1,10 @@
 """Benchmark harness for running agent trials.
 
 Orchestrates the benchmark workflow:
-1. Load bug catalog
+1. Load bug catalog (or manifest for controlled runs)
 2. Create working copies
 3. Apply bugs
-4. Run agents
+4. Run agents (using pre-captured test output for consistency)
 5. Evaluate fixes
 6. Collect results
 """
@@ -38,6 +38,7 @@ class BenchmarkHarness:
         repo_path: Path,
         repo_name: str,
         output_dir: Path | None = None,
+        manifest: dict | None = None,
     ):
         """Initialize the benchmark harness.
 
@@ -46,11 +47,21 @@ class BenchmarkHarness:
             repo_path: Path to the source repository.
             repo_name: Name of the repository (e.g., 'humanize').
             output_dir: Directory for storing results (default: temp dir).
+            manifest: Optional manifest dict with pre-captured test outputs.
+                      When provided, uses manifest test_output instead of
+                      re-running tests, ensuring all agents see identical input.
         """
         self.catalog_path = catalog_path
         self.repo_path = repo_path
         self.repo_name = repo_name
         self.catalog = load_bug_catalog(catalog_path)
+        self.manifest = manifest
+
+        # Index manifest trials by bug_id for fast lookup
+        self._manifest_trials = {}
+        if manifest:
+            for trial in manifest.get("trials", []):
+                self._manifest_trials[trial["bug_id"]] = trial
 
         if output_dir is None:
             output_dir = Path(tempfile.mkdtemp(prefix="stylebench_results_"))
@@ -58,6 +69,16 @@ class BenchmarkHarness:
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
         self.results: list[TrialResult] = []
+
+    def _get_manifest_test_output(self, bug_id: str) -> tuple[str, list[str]] | None:
+        """Get pre-captured test output from manifest.
+
+        Returns (test_output, failing_tests) or None if not in manifest.
+        """
+        trial = self._manifest_trials.get(bug_id)
+        if trial:
+            return trial["test_output"], trial.get("failing_tests", [])
+        return None
 
     def run_trial(
         self,
@@ -67,6 +88,10 @@ class BenchmarkHarness:
         test_timeout: int = 120,
     ) -> TrialResult:
         """Run a single benchmark trial.
+
+        When a manifest is loaded, uses pre-captured test output for the agent
+        prompt (ensuring all agents see identical input), but still runs tests
+        after the fix to evaluate the result.
 
         Args:
             agent: The agent to test.
@@ -108,33 +133,53 @@ class BenchmarkHarness:
                 self.results.append(result)
                 return result
 
-            # Run tests to get initial failure output
-            before_result = run_tests(work_dir, self.repo_name, timeout=test_timeout)
-
-            if before_result.exit_code == 0:
-                # Bug didn't cause test failure - skip
-                result = TrialResult(
-                    bug_id=bug_id,
-                    agent=agent.get_name(),
-                    mode=mode,
-                    fix_result=FixResult(
-                        success=False, error="Bug did not cause test failure"
-                    ),
-                    evaluation="ERROR",
-                )
-                self.results.append(result)
-                return result
+            # Get test output for the agent prompt
+            manifest_output = self._get_manifest_test_output(bug_id)
+            if manifest_output:
+                # Use pre-captured test output from manifest (controlled)
+                test_output, failing_tests = manifest_output
+                # Still run a quick validation to confirm bug is active
+                before_result = run_tests(work_dir, self.repo_name, timeout=test_timeout)
+                if before_result.exit_code == 0:
+                    result = TrialResult(
+                        bug_id=bug_id,
+                        agent=agent.get_name(),
+                        mode=mode,
+                        fix_result=FixResult(
+                            success=False, error="Bug did not cause test failure"
+                        ),
+                        evaluation="ERROR",
+                    )
+                    self.results.append(result)
+                    return result
+            else:
+                # No manifest — run tests to get failure output (legacy behavior)
+                before_result = run_tests(work_dir, self.repo_name, timeout=test_timeout)
+                if before_result.exit_code == 0:
+                    result = TrialResult(
+                        bug_id=bug_id,
+                        agent=agent.get_name(),
+                        mode=mode,
+                        fix_result=FixResult(
+                            success=False, error="Bug did not cause test failure"
+                        ),
+                        evaluation="ERROR",
+                    )
+                    self.results.append(result)
+                    return result
+                test_output = before_result.output
+                failing_tests = before_result.failing_tests
 
             # Hide tests if needed
             hidden_path = None
             if mode == "without_tests":
                 hidden_path = hide_tests(work_dir, self.repo_name)
 
-            # Build context for agent
+            # Build context for agent — uses controlled test output
             context = BugContext(
                 repo_path=work_dir,
-                test_output=before_result.output,
-                failing_tests=before_result.failing_tests,
+                test_output=test_output,
+                failing_tests=failing_tests,
                 mode=mode,
                 bug_id=bug_id,
                 repo_name=self.repo_name,
@@ -148,7 +193,7 @@ class BenchmarkHarness:
             if hidden_path is not None:
                 restore_tests(work_dir, hidden_path, self.repo_name)
 
-            # Evaluate the fix
+            # Evaluate the fix (always run tests fresh for evaluation)
             if not fix_result.success:
                 evaluation = "NO_FIX"
                 after_result = before_result  # No changes made
@@ -184,6 +229,7 @@ class BenchmarkHarness:
         bug_ids: list[str] | None = None,
         test_timeout: int = 120,
         progress_callback: Callable | None = None,
+        delay_between_trials: int = 0,
     ) -> list[TrialResult]:
         """Run trials for multiple bugs.
 
@@ -193,10 +239,13 @@ class BenchmarkHarness:
             bug_ids: List of bug IDs to test (default: all bugs).
             test_timeout: Timeout for test execution.
             progress_callback: Optional callback(current, total, bug_id).
+            delay_between_trials: Seconds to wait between trials (for rate limiting).
 
         Returns:
             List of TrialResults.
         """
+        import time
+
         if bug_ids is None:
             bug_ids = [bug["bug_id"] for bug in self.catalog.get("bugs", [])]
 
@@ -211,6 +260,9 @@ class BenchmarkHarness:
                 agent=agent, bug_id=bug_id, mode=mode, test_timeout=test_timeout
             )
             results.append(result)
+
+            if delay_between_trials > 0 and i < total - 1:
+                time.sleep(delay_between_trials)
 
         return results
 
@@ -236,6 +288,7 @@ class BenchmarkHarness:
                 "repo_name": self.repo_name,
                 "timestamp": datetime.now().isoformat(),
                 "total_trials": len(self.results),
+                "manifest_used": self.manifest is not None,
             },
             "results": [r.to_dict() for r in self.results],
             "summary": self._compute_summary(),

@@ -6,17 +6,25 @@ Features:
 - Detects rate limit errors and exits gracefully
 - Resumes from where it left off, only re-running incomplete bugs
 - Supports multiple agents (claude, gemini) with separate state/results
-- Configurable delays between trials
+- Supports model selection (e.g., --model haiku, --model sonnet)
+- Configurable max-turns and delays between trials
 
 Usage:
-    # Start or resume benchmark (default: claude)
+    # Start or resume benchmark (default: claude, default model)
     python scripts/run_benchmark.py
+
+    # Run with specific model
+    python scripts/run_benchmark.py --agent claude --model haiku
+    python scripts/run_benchmark.py --agent claude --model sonnet
 
     # Run with gemini agent
     python scripts/run_benchmark.py --agent gemini
 
+    # Control max turns (fewer turns = less quota usage)
+    python scripts/run_benchmark.py --agent claude --model haiku --max-turns 5
+
     # Reset progress and start fresh
-    python scripts/run_benchmark.py --agent gemini --reset
+    python scripts/run_benchmark.py --agent claude --model haiku --reset
 
     # Run specific repos only
     python scripts/run_benchmark.py --repos python-markdown more-itertools
@@ -36,8 +44,21 @@ from pathlib import Path
 # Configuration
 DATA_DIR = Path("/Users/yuan/stylebench-data")
 BUGS_PER_STYLE = 10
-DELAY_BETWEEN_TRIALS = 2  # seconds
-DELAY_BETWEEN_BATCHES = 5  # seconds
+DELAY_BETWEEN_TRIALS = 2  # seconds between batches
+DELAY_BETWEEN_BATCHES = 5  # seconds every 5 batches
+
+# Per-trial delay within a batch (seconds) - keyed by agent name
+# Gemini CLI makes many API calls per invocation, needs throttling
+AGENT_TRIAL_DELAY = {
+    "claude": 0,
+    "gemini": 30,
+}
+
+# Default max turns per agent (can be overridden with --max-turns)
+AGENT_DEFAULT_MAX_TURNS = {
+    "claude": 10,
+    "gemini": 10,  # Gemini CLI manages its own turns
+}
 
 ALL_REPOS = ["humanize", "validators", "python-markdown", "more-itertools"]
 ALL_STYLES = ["original", "camelcase", "snakecase", "badnames", "formatting"]
@@ -58,9 +79,17 @@ RATE_LIMIT_PATTERNS = [
 ]
 
 
-def _get_dirs(agent: str) -> tuple[Path, Path]:
-    """Return (results_dir, state_file) for an agent."""
-    results_dir = DATA_DIR / "results" / f"benchmark_{agent}"
+def _get_run_id(agent: str, model: str | None) -> str:
+    """Return a unique identifier for an agent+model combination."""
+    if model:
+        return f"{agent}_{model}"
+    return agent
+
+
+def _get_dirs(agent: str, model: str | None) -> tuple[Path, Path]:
+    """Return (results_dir, state_file) for an agent+model combination."""
+    run_id = _get_run_id(agent, model)
+    results_dir = DATA_DIR / "results" / f"benchmark_{run_id}"
     state_file = results_dir / "benchmark_state.json"
     return results_dir, state_file
 
@@ -98,9 +127,9 @@ def save_state(state: dict, state_file: Path, results_dir: Path):
         json.dump(state, f, indent=2)
 
 
-def get_bug_ids_for_batch(repo: str, style: str, limit: int) -> list[str]:
+def get_bug_ids_for_batch(repo: str, style: str, limit: int, catalog_dir: str = "bugs") -> list[str]:
     """Load bug IDs from a catalog, limited to first `limit`."""
-    catalog = DATA_DIR / "bugs" / f"{repo}-{style}.json"
+    catalog = DATA_DIR / catalog_dir / f"{repo}-{style}.json"
     if not catalog.exists():
         return []
     with open(catalog) as f:
@@ -109,16 +138,16 @@ def get_bug_ids_for_batch(repo: str, style: str, limit: int) -> list[str]:
     return bug_ids[:limit]
 
 
-def get_pending_bugs(state: dict, repo: str, style: str, mode: str, limit: int) -> list[str]:
+def get_pending_bugs(state: dict, repo: str, style: str, mode: str, limit: int, catalog_dir: str = "bugs") -> list[str]:
     """Return bug IDs for this batch that haven't completed yet."""
-    all_bugs = get_bug_ids_for_batch(repo, style, limit)
+    all_bugs = get_bug_ids_for_batch(repo, style, limit, catalog_dir)
     done = state.get("completed_bugs", {}).get(mode, {})
     return [b for b in all_bugs if b not in done]
 
 
-def is_batch_complete(state: dict, repo: str, style: str, mode: str, limit: int) -> bool:
+def is_batch_complete(state: dict, repo: str, style: str, mode: str, limit: int, catalog_dir: str = "bugs") -> bool:
     """Check if all bugs in a batch are completed."""
-    return len(get_pending_bugs(state, repo, style, mode, limit)) == 0
+    return len(get_pending_bugs(state, repo, style, mode, limit, catalog_dir)) == 0
 
 
 def parse_result_file(result_file: Path) -> list[dict]:
@@ -165,17 +194,21 @@ def find_result_file_after(results_dir: Path, timestamp: float) -> Path | None:
 
 def run_batch(
     agent: str,
+    model: str | None,
+    max_turns: int,
     repo: str,
     style: str,
     mode: str,
     bug_ids: list[str],
     results_dir: Path,
+    manifest_path: Path | None = None,
+    catalog_dir: str = "bugs",
 ) -> tuple[list[dict], bool]:
     """Run a batch for specific bug IDs.
 
     Returns (parsed_results, had_rate_limit).
     """
-    catalog = DATA_DIR / "bugs" / f"{repo}-{style}.json"
+    catalog = DATA_DIR / catalog_dir / f"{repo}-{style}.json"
     repo_path = DATA_DIR / style / repo
 
     if not catalog.exists():
@@ -186,6 +219,7 @@ def run_batch(
         print(f"    Repo not found: {repo_path}")
         return [], False
 
+    trial_delay = AGENT_TRIAL_DELAY.get(agent, 0)
     cmd = [
         "uv",
         "run",
@@ -202,12 +236,22 @@ def run_batch(
         agent,
         "--mode",
         mode,
+        "--max-turns",
+        str(max_turns),
         "--output-dir",
         str(results_dir),
+        "--trial-delay",
+        str(trial_delay),
         "--quiet",
-        "--bugs",
-        *bug_ids,
     ]
+
+    if model:
+        cmd.extend(["--model", model])
+
+    if manifest_path:
+        cmd.extend(["--manifest", str(manifest_path)])
+
+    cmd.extend(["--bugs", *bug_ids])
 
     before = time.time()
     try:
@@ -216,23 +260,21 @@ def run_batch(
             cwd="/Users/yuan/stylebench",
             capture_output=True,
             text=True,
-            timeout=1800,  # 30 min max per batch
+            timeout=3600,  # 60 min max per batch
         )
-
-        result_file = find_result_file_after(results_dir, before)
-        if result_file is None:
-            return [], False
-
-        parsed = parse_result_file(result_file)
-        had_rate_limit = any(r["rate_limited"] for r in parsed)
-        return parsed, had_rate_limit
-
     except subprocess.TimeoutExpired:
-        print("    Timeout!")
-        return [], False
+        print("    Timeout!", end=" ")
     except Exception as e:
-        print(f"    Error: {e}")
+        print(f"    Error: {e}", end=" ")
+
+    # Always try to parse results, even after timeout (runner may have written partial results)
+    result_file = find_result_file_after(results_dir, before)
+    if result_file is None:
         return [], False
+
+    parsed = parse_result_file(result_file)
+    had_rate_limit = any(r["rate_limited"] for r in parsed)
+    return parsed, had_rate_limit
 
 
 def record_results(state: dict, mode: str, parsed: list[dict]):
@@ -247,20 +289,44 @@ def record_results(state: dict, mode: str, parsed: list[dict]):
 def main():
     parser = argparse.ArgumentParser(description="Run benchmark with rate limit handling")
     parser.add_argument("--agent", default="claude", help="Agent to use (claude, gemini)")
+    parser.add_argument("--model", default=None, help="Model to use (e.g., haiku, sonnet, opus)")
+    parser.add_argument(
+        "--max-turns",
+        type=int,
+        default=None,
+        help="Max agentic turns per trial (default: agent-specific)",
+    )
     parser.add_argument("--reset", action="store_true", help="Reset progress and start fresh")
     parser.add_argument("--repos", nargs="+", default=ALL_REPOS, help="Repos to test")
     parser.add_argument("--styles", nargs="+", default=ALL_STYLES, help="Styles to test")
     parser.add_argument("--modes", nargs="+", default=ALL_MODES, help="Modes to test")
     parser.add_argument("--limit", type=int, default=BUGS_PER_STYLE, help="Bugs per batch")
+    parser.add_argument(
+        "--catalog-dir",
+        default="bugs",
+        help="Bug catalog subdirectory under data dir (default: bugs, use bugs_canonical for canonical)",
+    )
+    parser.add_argument(
+        "--manifest",
+        type=str,
+        default=None,
+        help="Path to trial manifest JSON (for controlled runs with pre-captured test output)",
+    )
+    parser.add_argument(
+        "--yes", "-y", action="store_true", help="Skip confirmation prompts (for non-interactive use)"
+    )
     args = parser.parse_args()
 
-    results_dir, state_file = _get_dirs(args.agent)
+    max_turns = args.max_turns or AGENT_DEFAULT_MAX_TURNS.get(args.agent, 10)
+    run_id = _get_run_id(args.agent, args.model)
+    results_dir, state_file = _get_dirs(args.agent, args.model)
     results_dir.mkdir(parents=True, exist_ok=True)
 
     # Load or reset state
     if args.reset:
         state = _empty_state()
         state["started_at"] = datetime.now().isoformat()
+        state["config"] = {"agent": args.agent, "model": args.model, "max_turns": max_turns}
         save_state(state, state_file, results_dir)
         print("Progress reset.")
     else:
@@ -273,6 +339,7 @@ def main():
 
     if state.get("started_at") is None:
         state["started_at"] = datetime.now().isoformat()
+        state["config"] = {"agent": args.agent, "model": args.model, "max_turns": max_turns}
         save_state(state, state_file, results_dir)
 
     # Build list of batches
@@ -281,14 +348,16 @@ def main():
     ]
 
     # Filter out fully completed batches
-    pending = [b for b in all_batches if not is_batch_complete(state, *b, args.limit)]
+    pending = [b for b in all_batches if not is_batch_complete(state, *b, args.limit, args.catalog_dir)]
 
     # Count total completed bugs across all modes
     total_done_bugs = sum(len(bugs) for bugs in state.get("completed_bugs", {}).values())
 
-    print(f"Benchmark Progress ({args.agent})")
+    print(f"Benchmark Progress ({run_id})")
     print("=" * 60)
     print(f"Agent: {args.agent}")
+    print(f"Model: {args.model or '(default)'}")
+    print(f"Max turns: {max_turns}")
     print(f"Total batches: {len(all_batches)}")
     print(f"Fully completed batches: {len(all_batches) - len(pending)}")
     print(f"Batches with remaining work: {len(pending)}")
@@ -307,10 +376,13 @@ def main():
         if elapsed < 3600:  # Less than 1 hour ago
             print(f"Rate limit was hit {elapsed / 60:.0f} minutes ago.")
             print("Consider waiting before resuming.")
-            response = input("Continue anyway? [y/N]: ")
-            if response.lower() != "y":
-                print("Exiting. Run again later.")
-                return
+            if args.yes:
+                print("Continuing (--yes flag).")
+            else:
+                response = input("Continue anyway? [y/N]: ")
+                if response.lower() != "y":
+                    print("Exiting. Run again later.")
+                    return
 
     print(f"Starting benchmark with {len(pending)} pending batches...")
     print()
@@ -330,11 +402,11 @@ def main():
             print(f"\n  Repository: {repo}")
 
         # Determine which bugs still need running
-        remaining = get_pending_bugs(state, repo, style, mode, args.limit)
+        remaining = get_pending_bugs(state, repo, style, mode, args.limit, args.catalog_dir)
         if not remaining:
             continue
 
-        total_for_batch = len(get_bug_ids_for_batch(repo, style, args.limit))
+        total_for_batch = len(get_bug_ids_for_batch(repo, style, args.limit, args.catalog_dir))
         already_done = total_for_batch - len(remaining)
 
         # Update state
@@ -357,7 +429,11 @@ def main():
                 flush=True,
             )
 
-        parsed, had_rate_limit = run_batch(args.agent, repo, style, mode, remaining, results_dir)
+        parsed, had_rate_limit = run_batch(
+            args.agent, args.model, max_turns, repo, style, mode, remaining, results_dir,
+            manifest_path=Path(args.manifest) if args.manifest else None,
+            catalog_dir=args.catalog_dir,
+        )
 
         # Record the successful results (even if batch was partially rate-limited)
         if parsed:

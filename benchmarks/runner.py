@@ -13,6 +13,7 @@ Usage:
 """
 
 import argparse
+import json
 import sys
 from pathlib import Path
 
@@ -141,6 +142,17 @@ def main():
         help="Model to use (agent-specific)",
     )
     parser.add_argument(
+        "--trial-delay",
+        type=int,
+        default=0,
+        help="Seconds to wait between individual trials (for rate limiting)",
+    )
+    parser.add_argument(
+        "--manifest",
+        type=Path,
+        help="Path to trial manifest JSON (for controlled runs with pre-captured test output)",
+    )
+    parser.add_argument(
         "--quiet",
         action="store_true",
         help="Suppress progress output",
@@ -157,12 +169,24 @@ def main():
         print(f"Error: Repository not found: {args.repo}", file=sys.stderr)
         sys.exit(1)
 
+    # Load manifest if provided
+    manifest = None
+    if args.manifest:
+        if not args.manifest.exists():
+            print(f"Error: Manifest not found: {args.manifest}", file=sys.stderr)
+            sys.exit(1)
+        with open(args.manifest) as f:
+            manifest = json.load(f)
+        if not args.quiet:
+            print(f"Using manifest: {args.manifest} ({manifest.get('total_bugs', '?')} bugs)")
+
     # Create harness
     harness = BenchmarkHarness(
         catalog_path=args.catalog,
         repo_path=args.repo,
         repo_name=args.repo_name,
         output_dir=args.output_dir,
+        manifest=manifest,
     )
 
     # Get agent
@@ -199,6 +223,7 @@ def main():
         bug_ids=bug_ids,
         test_timeout=args.test_timeout,
         progress_callback=progress,
+        delay_between_trials=args.trial_delay,
     )
 
     # Save results
