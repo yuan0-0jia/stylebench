@@ -17,9 +17,9 @@ import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
-logger = logging.getLogger(__name__)
-
 from bugs.repo_config import get_config
+
+logger = logging.getLogger(__name__)
 
 # Track active subprocesses for cleanup
 _active_processes: set[subprocess.Popen] = set()
@@ -244,7 +244,8 @@ def apply_bug(repo_path: Path, hidden_metadata: dict) -> bool:
             )
         else:
             logger.warning(
-                "apply_bug: last-resort fallback used for %s (line_number and context matching both failed)",
+                "apply_bug: last-resort fallback used for %s "
+                "(line_number and context matching both failed)",
                 hidden_metadata["file_path"],
             )
 
@@ -400,8 +401,10 @@ def _parse_test_counts(output: str) -> tuple[int, int, int]:
     last_summary = None
     for line in output.split("\n"):
         stripped = line.strip()
-        if stripped.startswith("=") and ("passed" in stripped.lower() or "failed" in stripped.lower()
-                                         or "error" in stripped.lower()):
+        s_lower = stripped.lower()
+        if stripped.startswith("=") and (
+            "passed" in s_lower or "failed" in s_lower or "error" in s_lower
+        ):
             last_summary = stripped
 
     if last_summary:
