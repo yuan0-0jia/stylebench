@@ -43,7 +43,7 @@ from pathlib import Path
 
 # Configuration
 DATA_DIR = Path("/Users/yuan/stylebench-data")
-BUGS_PER_STYLE = 10
+BUGS_PER_STYLE = 20
 DELAY_BETWEEN_TRIALS = 2  # seconds between batches
 DELAY_BETWEEN_BATCHES = 5  # seconds every 5 batches
 
@@ -64,21 +64,6 @@ ALL_REPOS = ["humanize", "validators", "python-markdown", "more-itertools"]
 ALL_STYLES = ["original", "camelcase", "snakecase", "badnames", "formatting"]
 ALL_MODES = ["with_tests", "without_tests"]
 
-# Universal rate limit patterns (covers Claude, Gemini, OpenAI, and most AI APIs)
-RATE_LIMIT_PATTERNS = [
-    "hit your limit",  # Claude
-    "rate limit",  # Generic / Gemini
-    "resource_exhausted",  # Gemini / gRPC
-    "quota exceeded",  # Gemini / Google
-    "quota metric",  # Google Cloud
-    "too many requests",  # HTTP 429 standard
-    "429",  # HTTP status code
-    "request limit reached",  # OpenAI
-    "tokens per min",  # OpenAI TPM
-    "requests per min",  # OpenAI RPM
-]
-
-
 def _get_run_id(agent: str, model: str | None) -> str:
     """Return a unique identifier for an agent+model combination."""
     if model:
@@ -92,12 +77,6 @@ def _get_dirs(agent: str, model: str | None) -> tuple[Path, Path]:
     results_dir = DATA_DIR / "results" / f"benchmark_{run_id}"
     state_file = results_dir / "benchmark_state.json"
     return results_dir, state_file
-
-
-def is_rate_limited(output: str) -> bool:
-    """Check if output indicates a rate limit from any AI provider."""
-    output_lower = output.lower()
-    return any(pattern in output_lower for pattern in RATE_LIMIT_PATTERNS)
 
 
 def load_state(state_file: Path) -> dict:
@@ -158,38 +137,37 @@ def is_batch_complete(
     return len(get_pending_bugs(state, repo, style, mode, limit, catalog_dir)) == 0
 
 
-def parse_result_file(result_file: Path) -> list[dict]:
-    """Parse a result file and classify each bug.
+def parse_result_file(result_file: Path) -> tuple[list[dict], bool]:
+    """Parse a result file and extract per-bug results and rate-limit status.
 
-    Returns list of dicts with keys: bug_id, evaluation, rate_limited.
+    Rate-limited trials are NOT stored as result entries (they are dropped by the
+    harness). Instead, rate limiting is signaled via metadata.hit_rate_limit.
+
+    Returns (parsed_results, hit_rate_limit).
     """
     if not result_file.exists():
-        return []
+        return [], False
     try:
         with open(result_file) as f:
             data = json.load(f)
     except (json.JSONDecodeError, KeyError):
-        return []
+        return [], False
+
+    # Rate limiting is signaled via metadata (harness drops rate-limited trials)
+    metadata = data.get("metadata", {})
+    hit_rate_limit = metadata.get("hit_rate_limit", False)
 
     parsed = []
     for trial in data.get("results", []):
         bug_id = trial.get("bug_id", "")
         evaluation = trial.get("evaluation", "ERROR")
-        # Check for rate limiting via fix_result flag or output pattern matching
-        fix_result = trial.get("fix_result", {})
-        rate_limited = fix_result.get("rate_limited", False)
-        if not rate_limited:
-            output = fix_result.get("agent_output", "") or ""
-            error = fix_result.get("error", "") or ""
-            rate_limited = evaluation != "PASS" and is_rate_limited(output + " " + error)
         parsed.append(
             {
                 "bug_id": bug_id,
                 "evaluation": evaluation,
-                "rate_limited": rate_limited,
             }
         )
-    return parsed
+    return parsed, hit_rate_limit
 
 
 def find_result_file_after(results_dir: Path, timestamp: float) -> Path | None:
@@ -283,18 +261,20 @@ def run_batch(
     if result_file is None:
         return [], False
 
-    parsed = parse_result_file(result_file)
-    had_rate_limit = any(r["rate_limited"] for r in parsed)
-    return parsed, had_rate_limit
+    parsed, hit_rate_limit = parse_result_file(result_file)
+    return parsed, hit_rate_limit
 
 
 def record_results(state: dict, mode: str, parsed: list[dict]):
-    """Record per-bug results into state, skipping rate-limited ones."""
+    """Record per-bug results into state.
+
+    Rate-limited trials are never present in parsed results (dropped by harness),
+    so all entries here are genuine results.
+    """
     if mode not in state["completed_bugs"]:
         state["completed_bugs"][mode] = {}
     for r in parsed:
-        if not r["rate_limited"]:
-            state["completed_bugs"][mode][r["bug_id"]] = r["evaluation"]
+        state["completed_bugs"][mode][r["bug_id"]] = r["evaluation"]
 
 
 def main():
@@ -456,11 +436,8 @@ def main():
             record_results(state, mode, parsed)
             save_state(state, state_file, results_dir)
 
-        succeeded = sum(1 for r in parsed if not r["rate_limited"])
-        rate_limited_count = sum(1 for r in parsed if r["rate_limited"])
-
         if had_rate_limit:
-            print(f"RATE LIMITED ({succeeded} ok, {rate_limited_count} limited)")
+            print(f"RATE LIMITED ({len(parsed)} ok, batch stopped)")
             state["rate_limited_at"] = datetime.now().isoformat()
             state["current"] = None
             save_state(state, state_file, results_dir)
@@ -470,7 +447,7 @@ def main():
             print("Run this script again after rate limit resets.")
             return
         elif parsed:
-            print(f"done ({succeeded}/{len(remaining)})")
+            print(f"done ({len(parsed)}/{len(remaining)})")
         else:
             print("FAILED (will retry next run)")
 

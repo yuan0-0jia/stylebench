@@ -1,7 +1,10 @@
 """Tests for the benchmarks module."""
 
+import json
+import sys
 import tempfile
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
@@ -648,3 +651,197 @@ class TestBenchmarkHarness:
 
         assert result.evaluation == "ERROR"
         assert "not found" in result.fix_result.error
+
+
+class TestRateLimitWorkflow:
+    """End-to-end test for the rate-limit recovery workflow.
+
+    Verifies that:
+    1. Rate-limited trials are dropped from saved results
+    2. The hit_rate_limit flag is set in result file metadata
+    3. The script layer detects it and skips recording the bug
+    4. The bug shows up as pending on the next run
+    """
+
+    def _make_catalog(self, tmp_path: Path, bug_ids: list[str]) -> Path:
+        """Create a minimal bug catalog with the given bug IDs."""
+        catalog = {
+            "bugs": [
+                {
+                    "bug_id": bid,
+                    "exit_code": 1,
+                    "failing_tests": ["tests/test_foo.py::test_bar"],
+                    "test_output": "FAILED tests/test_foo.py::test_bar",
+                }
+                for bid in bug_ids
+            ],
+            "_hidden": [
+                {
+                    "bug_id": bid,
+                    "file_path": "src/foo.py",
+                    "original_text": "x == y",
+                    "mutated_text": "x != y",
+                    "line_number": 1,
+                    "context": "",
+                    "mutation_type": "eq_ne",
+                }
+                for bid in bug_ids
+            ],
+        }
+        catalog_path = tmp_path / "catalog.json"
+        catalog_path.write_text(json.dumps(catalog))
+        return catalog_path
+
+    def _make_repo(self, tmp_path: Path) -> Path:
+        """Create a minimal repo with a source file and test dir."""
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        (repo / "src").mkdir()
+        (repo / "src" / "foo.py").write_text("x == y\n")
+        (repo / "tests").mkdir()
+        (repo / "tests" / "test_foo.py").write_text("def test_bar(): pass\n")
+        return repo
+
+    def test_harness_drops_rate_limited_trial(self, tmp_path):
+        """Rate-limited trial should not appear in saved results."""
+        bug_ids = ["test-original-001", "test-original-002", "test-original-003"]
+        catalog_path = self._make_catalog(tmp_path, bug_ids)
+        repo = self._make_repo(tmp_path)
+        output_dir = tmp_path / "results"
+
+        # Mock run_tests to simulate: before=failing, after=passing
+        failing_result = TestRunResult(
+            exit_code=1, passed=9, failed=1, total=10,
+            output="FAILED tests/test_foo.py::test_bar",
+            failing_tests=["tests/test_foo.py::test_bar"],
+        )
+        passing_result = TestRunResult(
+            exit_code=0, passed=10, failed=0, total=10,
+            output="10 passed",
+            failing_tests=[],
+        )
+
+        # Agent that succeeds on first bug, then gets rate-limited on second
+        call_count = 0
+        run_tests_call_count = 0
+
+        class RateLimitAgent(Agent):
+            name = "mock"
+
+            def fix_bug(self, context: BugContext) -> FixResult:
+                nonlocal call_count
+                call_count += 1
+                if call_count == 1:
+                    return FixResult(success=True, files_changed=["src/foo.py"])
+                else:
+                    return FixResult(
+                        success=False,
+                        rate_limited=True,
+                        agent_output="Error: you hit your limit",
+                    )
+
+        def mock_run_tests(repo_path, repo_name, timeout=120):
+            nonlocal run_tests_call_count
+            run_tests_call_count += 1
+            # Odd calls = before (failing), even calls = after (passing)
+            if run_tests_call_count % 2 == 1:
+                return failing_result
+            return passing_result
+
+        harness = BenchmarkHarness(
+            catalog_path=catalog_path,
+            repo_path=repo,
+            repo_name="humanize",
+            output_dir=output_dir,
+            manifest={
+                "trials": [
+                    {
+                        "bug_id": bid,
+                        "test_output": "FAILED tests/test_foo.py::test_bar",
+                        "failing_tests": ["tests/test_foo.py::test_bar"],
+                    }
+                    for bid in bug_ids
+                ],
+            },
+        )
+
+        with patch("benchmarks.harness.run_tests", side_effect=mock_run_tests):
+            results = harness.run_all(agent=RateLimitAgent(), bug_ids=bug_ids, mode="with_tests")
+
+        # run_all should return only the first (clean) result
+        assert len(results) == 1
+        assert results[0].bug_id == "test-original-001"
+
+        # harness.results (used for saving) should also have only the clean result
+        assert len(harness.results) == 1
+        assert harness.results[0].bug_id == "test-original-001"
+
+        # hit_rate_limit flag should be set
+        assert harness.hit_rate_limit is True
+
+        # Agent should have been called twice (first OK, second rate-limited, third never called)
+        assert call_count == 2
+
+        # Save results and verify the file
+        result_path = harness.save_results()
+        with open(result_path) as f:
+            data = json.load(f)
+
+        # Metadata should signal rate limiting
+        assert data["metadata"]["hit_rate_limit"] is True
+
+        # Only the clean trial should be in results
+        assert len(data["results"]) == 1
+        assert data["results"][0]["bug_id"] == "test-original-001"
+        assert data["results"][0]["fix_result"]["rate_limited"] is False
+
+    def test_script_parse_result_file(self, tmp_path):
+        """Script layer should detect rate limiting from metadata."""
+        # Add scripts dir to path so we can import run_benchmark
+        sys.path.insert(0, str(Path("/Users/yuan/stylebench/scripts")))
+        try:
+            import run_benchmark
+        finally:
+            sys.path.pop(0)
+
+        # Create a result file with hit_rate_limit in metadata
+        result_file = tmp_path / "results_test.json"
+        result_file.write_text(json.dumps({
+            "metadata": {
+                "hit_rate_limit": True,
+                "total_trials": 1,
+            },
+            "results": [
+                {
+                    "bug_id": "test-original-001",
+                    "evaluation": "PASS",
+                    "fix_result": {"rate_limited": False},
+                },
+            ],
+        }))
+
+        parsed, hit_rate_limit = run_benchmark.parse_result_file(result_file)
+
+        assert hit_rate_limit is True
+        assert len(parsed) == 1
+        assert parsed[0]["bug_id"] == "test-original-001"
+
+    def test_script_pending_bugs_after_rate_limit(self, tmp_path):
+        """Rate-limited bug should show up as pending on resume."""
+        sys.path.insert(0, str(Path("/Users/yuan/stylebench/scripts")))
+        try:
+            import run_benchmark
+        finally:
+            sys.path.pop(0)
+
+        # Simulate state after a rate-limited run:
+        # bug 001 completed, bug 002 was rate-limited (not recorded), bug 003 never attempted
+        state = run_benchmark._empty_state()
+        run_benchmark.record_results(state, "with_tests", [
+            {"bug_id": "test-original-001", "evaluation": "PASS"},
+        ])
+
+        assert "test-original-001" in state["completed_bugs"]["with_tests"]
+        # 002 and 003 should not be in completed_bugs
+        assert "test-original-002" not in state["completed_bugs"].get("with_tests", {})
+        assert "test-original-003" not in state["completed_bugs"].get("with_tests", {})

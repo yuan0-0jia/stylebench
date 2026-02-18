@@ -71,6 +71,7 @@ class BenchmarkHarness:
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
         self.results: list[TrialResult] = []
+        self.hit_rate_limit: bool = False
 
     def _get_manifest_test_output(self, bug_id: str) -> tuple[str, list[str]] | None:
         """Get pre-captured test output from manifest.
@@ -273,10 +274,12 @@ class BenchmarkHarness:
                 agent=agent, bug_id=bug_id, mode=mode, test_timeout=test_timeout
             )
 
-            # If the agent was rate-limited, drop this result and stop the batch.
-            # The trial is not recorded so it will be retried on the next run.
+            # If the agent was rate-limited, drop the result and stop the batch.
+            # The rate_limited flag is signaled via self.hit_rate_limit and written
+            # to the result file metadata so the script layer can detect it.
             if result.fix_result.rate_limited:
-                self.results.pop()  # undo the append in run_trial (O(1), no search needed)
+                self.results.pop()
+                self.hit_rate_limit = True
                 break
 
             results.append(result)
@@ -315,6 +318,7 @@ class BenchmarkHarness:
                 "timestamp": datetime.now().isoformat(),
                 "total_trials": len(self.results),
                 "manifest_used": self.manifest is not None,
+                "hit_rate_limit": self.hit_rate_limit,
             },
             "results": [r.to_dict() for r in self.results],
             "summary": self._compute_summary(),
