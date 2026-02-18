@@ -7,7 +7,7 @@ import subprocess
 import time
 
 from ..evaluator import detect_changes, hash_source_files
-from .base import Agent, BugContext, FixResult
+from .base import RATE_LIMIT_PATTERNS, Agent, BugContext, FixResult
 
 
 class GeminiAgent(Agent):
@@ -103,6 +103,10 @@ Instructions:
             # Hash all source files after the agent runs
             after_hashes = hash_source_files(context.repo_path)
 
+            # Check if the agent was rate-limited
+            output_lower = agent_output.lower()
+            was_rate_limited = any(p in output_lower for p in RATE_LIMIT_PATTERNS)
+
             # Determine if any fix was attempted by comparing hashes
             fix_attempted = before_hashes != after_hashes
 
@@ -116,6 +120,7 @@ Instructions:
                 time_seconds=elapsed,
                 agent_output=agent_output,
                 error=None if result.returncode == 0 else f"Exit code: {result.returncode}",
+                rate_limited=was_rate_limited,
             )
 
         except subprocess.TimeoutExpired:

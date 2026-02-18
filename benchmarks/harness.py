@@ -122,6 +122,7 @@ class BenchmarkHarness:
         # Create working copy
         work_dir = create_working_copy(self.repo_path)
 
+        hidden_path = None
         try:
             # Apply the bug
             if not apply_bug(work_dir, hidden):
@@ -225,6 +226,11 @@ class BenchmarkHarness:
             return trial_result
 
         finally:
+            # Clean up hidden test temp dir if it was never restored
+            if hidden_path is not None and hidden_path.exists():
+                hidden_parent = hidden_path.parent
+                if hidden_parent.name.startswith("stylebench_hidden_tests_"):
+                    shutil.rmtree(hidden_parent, ignore_errors=True)
             # Clean up working copy
             if work_dir.exists():
                 shutil.rmtree(work_dir, ignore_errors=True)
@@ -270,7 +276,7 @@ class BenchmarkHarness:
             # If the agent was rate-limited, drop this result and stop the batch.
             # The trial is not recorded so it will be retried on the next run.
             if result.fix_result.rate_limited:
-                self.results.remove(result)  # undo the append in run_trial
+                self.results.pop()  # undo the append in run_trial (O(1), no search needed)
                 break
 
             results.append(result)

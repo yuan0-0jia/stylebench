@@ -8,19 +8,7 @@ import time
 from pathlib import Path
 
 from ..evaluator import detect_changes, hash_source_files
-from .base import Agent, BugContext, FixResult
-
-# Patterns that indicate the agent was rate-limited rather than genuinely failing
-_RATE_LIMIT_PATTERNS = [
-    "out of extra usage",
-    "hit your limit",
-    "rate limit",
-    "too many requests",
-    "429",
-    "request limit reached",
-    "tokens per min",
-    "requests per min",
-]
+from .base import RATE_LIMIT_PATTERNS, Agent, BugContext, FixResult
 
 
 class ClaudeAgent(Agent):
@@ -160,7 +148,7 @@ Instructions:
 
             # Check if the agent was rate-limited
             output_lower = agent_output.lower()
-            was_rate_limited = any(p in output_lower for p in _RATE_LIMIT_PATTERNS)
+            was_rate_limited = any(p in output_lower for p in RATE_LIMIT_PATTERNS)
 
             # Determine if any fix was attempted by comparing hashes
             fix_attempted = before_hashes != after_hashes

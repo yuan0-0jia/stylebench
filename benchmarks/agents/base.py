@@ -5,6 +5,19 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 
+# Patterns that indicate the agent was rate-limited rather than genuinely failing.
+# Shared across all agent implementations.
+RATE_LIMIT_PATTERNS = [
+    "out of extra usage",
+    "hit your limit",
+    "rate limit",
+    "too many requests",
+    "429",
+    "request limit reached",
+    "tokens per min",
+    "requests per min",
+]
+
 
 @dataclass
 class BugContext:
