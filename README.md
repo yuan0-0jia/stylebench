@@ -21,8 +21,15 @@ cd stylebench
 # 2. Install dependencies
 uv sync
 
-# 3. Run a coding agent on a pre-generated bug (coming Week 5)
-# python benchmarks/runner.py --repo humanize --style camelcase --agent claude
+# 3. Run the benchmark (uses canonical bug catalogs, resumes on rate limit)
+python scripts/run_benchmark.py --catalog-dir bugs_canonical
+
+# 4. Run a single batch manually
+uv run python -m benchmarks.runner \
+    --catalog ../stylebench-data/bugs_canonical/humanize-original.json \
+    --repo ../stylebench-data/original/humanize \
+    --repo-name humanize \
+    --agent claude --mode with_tests
 ```
 
 ## End-to-End Workflow
@@ -45,13 +52,13 @@ StyleBench has 4 stages. Stages 1-3 are complete; pre-generated data is in `styl
 ┌──────────────────────────────────────────────────────────────────────────┐
 │  STAGE 3: BUG GENERATION                                                 │
 │  Inject mutations, validate they cause test failures                     │
-│  Output: stylebench-data/bugs/{repo}-{style}.json (991 total bugs)       │
+│  Output: stylebench-data/bugs_canonical/{repo}-{style}.json              │
 └──────────────────────────────────────────────────────────────────────────┘
                                     ↓
 ┌──────────────────────────────────────────────────────────────────────────┐
-│  STAGE 4: AGENT TESTING (Week 5)                                         │
+│  STAGE 4: AGENT TESTING                                                  │
 │  Run coding agents on bugs, evaluate fix success                         │
-│  Output: results/{agent}/{repo}-{style}-results.json                     │
+│  Output: stylebench-data/results/benchmark_{agent}/                      │
 └──────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -86,14 +93,6 @@ StyleBench uses these Python projects (already cloned in `stylebench-data/origin
 | [validators](https://github.com/python-validators/validators) | 3,144 | 878 | Input validation |
 | [python-markdown](https://github.com/Python-Markdown/markdown) | 8,293 | 776 | Markdown parser |
 | [more-itertools](https://github.com/more-itertools/more-itertools) | 6,822 | 701 | Extended itertools |
-
-### Verify Tests Pass
-
-```bash
-cd ../stylebench-data/original/humanize
-uv sync && uv run pytest tests/ -q
-# Expected: 684 passed
-```
 
 ---
 
@@ -133,14 +132,6 @@ python scripts/transform.py formatting \
     --style compact
 ```
 
-### Verify Transformation
-
-```bash
-cd ../stylebench-data/camelcase/humanize
-uv sync && uv run pytest tests/ -q
-# Expected: 681 passed (99.6% - minor failures from dynamic imports)
-```
-
 ### Pre-Generated Style Variants
 
 All 20 variants (4 repos × 5 styles) are already in `stylebench-data/`:
@@ -166,37 +157,33 @@ Inject semantic mutations and validate they cause test failures.
 |------|----------|---------|
 | `eq_ne` | `==` ↔ `!=` | `x == 0` → `x != 0` |
 | `var_swap` | Swap variables | `return x` → `return y` |
-| `lt_gt` | `<` ↔ `>` | `x < y` → `x > y` |
-| `le_ge` | `<=` ↔ `>=` | `x <= y` → `x >= y` |
+| `add_sub` | `+` ↔ `-` | `x + 1` → `x - 1` |
 | `and_or` | `and` ↔ `or` | `a and b` → `a or b` |
+| `if_else_swap` | Swap if/else | Invert branch logic |
+| `in_not_in` | `in` ↔ `not in` | `x in lst` → `x not in lst` |
 | `plus_one` | `n` → `n+1` | `range(10)` → `range(11)` |
-| `minus_one` | `n` → `n-1` | `range(10)` → `range(9)` |
+| `true_false` | `True` ↔ `False` | `return True` → `return False` |
+| `return_none` | Return None | `return val` → `return None` |
 
-### Generate Bug Catalog
+### Canonical Bug Catalogs
+
+For the benchmark, we use **canonical catalogs** (`bugs_canonical/`) where the same logical mutation is applied consistently across all 5 style variants. This ensures fair comparison across styles.
+
+- 20 catalogs (4 repos × 5 styles), 20 bugs each = **400 bugs**
+- All bugs have `line_number` and `context` for precise application
+- 8+ mutation types per repo
 
 ```bash
-cd stylebench
+# Generate canonical catalogs (already done)
+python scripts/generate_canonical_bugs.py --all
 
-# Generate bugs for a single repo/style (30-50 validated bugs)
+# Generate ad-hoc bugs for a single repo/style
 python scripts/generate_bugs.py humanize camelcase --count 50
-
-# Generate for all 5 styles of one repo
-python scripts/generate_bugs.py humanize --all-styles --count 50
-
-# Generate for all 20 combinations
-python scripts/generate_bugs.py --all --output ../stylebench-data/bugs/
-
-# Serial execution (less memory)
-python scripts/generate_bugs.py --all --workers 1
 ```
 
-**Available repos**: `humanize`, `validators`, `python-markdown`, `more-itertools`
+### Legacy Bug Catalogs
 
-**Available styles**: `original`, `camelcase`, `snakecase`, `badnames`, `formatting`
-
-### Pre-Generated Bug Catalogs
-
-**991 validated bugs** are already in `stylebench-data/bugs/`:
+The `bugs/` directory contains **991 ad-hoc validated bugs** (used for development/testing, not the benchmark):
 
 | Repo | Bugs per Style | Total |
 |------|----------------|-------|
@@ -205,63 +192,93 @@ python scripts/generate_bugs.py --all --workers 1
 | python-markdown | 50 | 250 |
 | more-itertools | 30 | 150 |
 
-**Mutation distribution**: eq_ne (45%), var_swap (16%), boundary (23%), other (16%)
-
-### Bug Catalog Format
-
-Each catalog has two files:
-
-- `{repo}-{style}.json` - Full details (for scoring)
-- `{repo}-{style}-agent.json` - Agent-visible only (no diff leakage)
-
-Agent-visible data contains only test failure output:
-
-```json
-{
-  "bugs": [
-    {
-      "bug_id": "humanize-camel-001",
-      "test_output": "FAILED tests/test_time.py::test_naturaldelta - AssertionError...",
-      "failing_tests": ["tests/test_time.py::test_naturaldelta"]
-    }
-  ]
-}
-```
-
-The agent never sees: mutation location, original code, or the diff.
-
 ---
 
-## Stage 4: Agent Testing (Coming Week 5)
+## Stage 4: Agent Testing
 
 Run coding agents on bugs and evaluate fix success.
 
-### Planned Usage
+### Running the Full Benchmark
+
+The benchmark runner handles rate limiting, resumption, and per-bug progress tracking:
 
 ```bash
-# Run Claude on 10 bugs from humanize/camelcase
-python benchmarks/runner.py \
-    --repo humanize \
-    --style camelcase \
-    --agent claude \
-    --count 10
+# Run the full 800-trial benchmark (20 bugs × 5 styles × 4 repos × 2 modes)
+python scripts/run_benchmark.py --catalog-dir bugs_canonical
 
-# Run multiple agents for comparison
-python benchmarks/runner.py \
-    --repo humanize \
-    --style original \
-    --agent claude,gpt4,gemini \
-    --count 50
+# Resume after rate limiting (automatically picks up where it left off)
+python scripts/run_benchmark.py --catalog-dir bugs_canonical
+
+# Run with a specific agent/model
+python scripts/run_benchmark.py --catalog-dir bugs_canonical --agent claude --model haiku
+
+# Run specific repos or modes only
+python scripts/run_benchmark.py --catalog-dir bugs_canonical --repos humanize validators
+python scripts/run_benchmark.py --catalog-dir bugs_canonical --mode without_tests
+
+# Reset progress and start fresh
+python scripts/run_benchmark.py --catalog-dir bugs_canonical --reset
 ```
+
+### Running Individual Trials
+
+```bash
+# Run a single batch via the runner module
+uv run python -m benchmarks.runner \
+    --catalog ../stylebench-data/bugs_canonical/humanize-original.json \
+    --repo ../stylebench-data/original/humanize \
+    --repo-name humanize \
+    --agent claude \
+    --mode with_tests \
+    --bugs humanize-original-001 humanize-original-002
+
+# Use gemini agent
+uv run python -m benchmarks.runner \
+    --catalog ../stylebench-data/bugs_canonical/validators-camelcase.json \
+    --repo ../stylebench-data/camelcase/validators \
+    --repo-name validators \
+    --agent gemini \
+    --mode without_tests
+```
+
+### Test Access Modes
+
+| Mode | Description |
+|------|-------------|
+| `with_tests` | Agent receives test failure output and can read (but not modify) test files |
+| `without_tests` | Agent receives test failure output but test files are hidden from the repo |
+
+### Rate Limit Handling
+
+The harness detects rate-limited API responses and handles them cleanly:
+
+1. Rate-limited trials are **not** saved to result files
+2. The `hit_rate_limit` metadata flag signals the script to stop
+3. Completed bugs are saved to state; rate-limited bugs remain pending
+4. Re-running the script resumes from where it left off
 
 ### Evaluation Flow
 
-1. Load bug from catalog
-2. Apply mutation to create buggy repo state
-3. Run agent with test failure output (no diff)
-4. Apply agent's proposed fix
-5. Run tests to score: PASS / FAIL / ERROR
-6. Restore original code, repeat
+1. Create working copy of styled repo (excludes `.git` to prevent diff cheating)
+2. Apply mutation from catalog (line-number-based, with context fallback)
+3. Run tests to verify bug is active
+4. Protect tests (hide for `without_tests`, lock read-only for `with_tests`)
+5. Run agent with test failure output
+6. Restore tests, run tests on agent's fix
+7. Score: PASS / FAIL / ERROR / TIMEOUT / NO_FIX
+
+### Pilot Results (200 trials, Haiku)
+
+| Metric | Value |
+|--------|-------|
+| Overall pass rate | 68.0% (136/200) |
+| with_tests | 76.0% (76/100) |
+| without_tests | 60.0% (60/100) |
+| Mode gap | 16pp |
+
+**By repo**: validators 94%, more-itertools 92%, python-markdown 84%, humanize 2%
+
+**By style**: original 67.5%, camelcase 65%, snakecase 70%, badnames 65%, formatting 72.5%
 
 ---
 
@@ -272,71 +289,27 @@ stylebench/
 ├── bugs/                  # Bug injection and validation
 │   ├── injector.py        # Tree-sitter mutation injector
 │   ├── validator.py       # Batch mutation testing
-│   └── catalog.py         # Bug catalog generator
+│   ├── catalog.py         # Bug catalog generator
+│   └── repo_config.py     # Per-repo test configuration
 ├── transformers/          # Code style transformers
 │   ├── base.py            # Base transformer class
 │   ├── naming.py          # CamelCase, SnakeCase, BadNaming
 │   └── formatting.py      # Ruff formatting
-├── benchmarks/            # Agent harness (Week 5)
+├── benchmarks/            # Agent harness
+│   ├── agents/            # Agent implementations
+│   │   ├── base.py        # Agent ABC, BugContext, FixResult, TrialResult
+│   │   ├── claude.py      # Claude Code CLI agent
+│   │   └── gemini.py      # Gemini CLI agent
+│   ├── evaluator.py       # Test running, bug application, file hashing
+│   ├── harness.py         # Trial orchestration, manifest mode
+│   └── runner.py          # CLI for running benchmark batches
 ├── scripts/
+│   ├── run_benchmark.py   # Full benchmark with rate-limit handling + resumption
 │   ├── transform.py       # CLI for style transformation
 │   └── generate_bugs.py   # CLI for bug generation
-├── data/                  # Symlinks to stylebench-data
-└── tests/                 # Test suite
-```
-
----
-
-## API Reference
-
-See [docs/BENCHMARKING.md](docs/BENCHMARKING.md) for a quick command reference.
-
-### Bug Injection
-
-```python
-from bugs.injector import list_mutation_sites, apply_mutation
-
-code = """
-def check(x, y):
-    if x < y:
-        return x == 0
-    return False
-"""
-
-# Find mutation sites
-sites = list_mutation_sites(code)
-for site in sites:
-    print(f"Line {site.start_point[0]+1}: {site.original_text} → {site.mutated_text}")
-
-# Apply a mutation
-mutated = apply_mutation(code, sites[0])
-```
-
-### Style Transformation
-
-```python
-from transformers import CamelCaseTransformer, BadNamingTransformer
-
-# Transform snake_case to camelCase
-transformer = CamelCaseTransformer(project_packages={'humanize'})
-result = transformer.transform(source_code)
-
-# Transform a directory
-transformer.transform_directory('src/', 'output/')
-```
-
-### Mutation Validation
-
-```python
-from bugs.validator import validate_mutations
-
-report = validate_mutations(
-    repo_path='path/to/repo',
-    source_dir='src',
-    max_mutations=50,
-    verbose=True
-)
-print(report.summary())
+├── tests/                 # Test suite (85+ tests)
+└── docs/
+    └── BENCHMARKING.md    # Quick command reference
 ```
 
 ---

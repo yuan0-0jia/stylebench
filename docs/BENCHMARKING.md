@@ -2,6 +2,54 @@
 
 Command reference for StyleBench. See [README.md](../README.md) for the full workflow.
 
+## Running the Benchmark
+
+```bash
+# Full 800-trial benchmark (20 bugs × 5 styles × 4 repos × 2 modes)
+python scripts/run_benchmark.py --catalog-dir bugs_canonical
+
+# Resume after rate limiting (automatic)
+python scripts/run_benchmark.py --catalog-dir bugs_canonical
+
+# Specific agent/model
+python scripts/run_benchmark.py --catalog-dir bugs_canonical --agent claude --model haiku
+python scripts/run_benchmark.py --catalog-dir bugs_canonical --agent gemini
+
+# Specific repos or modes
+python scripts/run_benchmark.py --catalog-dir bugs_canonical --repos humanize validators
+python scripts/run_benchmark.py --catalog-dir bugs_canonical --mode without_tests
+
+# Reset progress
+python scripts/run_benchmark.py --catalog-dir bugs_canonical --reset
+
+# Skip confirmation prompts
+python scripts/run_benchmark.py --catalog-dir bugs_canonical --yes
+```
+
+## Running Individual Batches
+
+```bash
+# Single batch via runner module
+uv run python -m benchmarks.runner \
+    --catalog ../stylebench-data/bugs_canonical/humanize-original.json \
+    --repo ../stylebench-data/original/humanize \
+    --repo-name humanize \
+    --agent claude \
+    --mode with_tests
+
+# Specific bugs
+uv run python -m benchmarks.runner ... --bugs humanize-original-001 humanize-original-002
+
+# Options
+--timeout 300        # Agent timeout (seconds)
+--test-timeout 120   # Test timeout (seconds)
+--max-turns 10       # Max agentic turns
+--model haiku        # Specific model
+--trial-delay 30     # Delay between trials (for rate limiting)
+--manifest FILE      # Use pre-captured test output
+--quiet              # Suppress progress output
+```
+
 ## Style Transformation
 
 ```bash
@@ -56,26 +104,29 @@ python scripts/generate_bugs.py --all --output ../stylebench-data/bugs/
 
 ## Mutation Types
 
-| Type | Priority | Kill Rate |
-|------|----------|-----------|
-| `eq_ne` | 1 | Very high |
-| `var_swap` | 2 | High |
-| `true_false` | 3 | High |
-| `lt_gt` | 4 | Medium |
-| `le_ge` | 5 | Medium |
-| `and_or` | 6 | Medium |
-| `plus_one` | 7 | Medium |
-| `minus_one` | 8 | Medium |
+| Type | Mutation | Example |
+|------|----------|---------|
+| `eq_ne` | `==` ↔ `!=` | `x == 0` → `x != 0` |
+| `var_swap` | Swap variables | `return x` → `return y` |
+| `add_sub` | `+` ↔ `-` | `x + 1` → `x - 1` |
+| `and_or` | `and` ↔ `or` | `a and b` → `a or b` |
+| `if_else_swap` | Swap if/else | Invert branch logic |
+| `in_not_in` | `in` ↔ `not in` | `x in lst` → `x not in lst` |
+| `plus_one` | `n` → `n+1` | `range(10)` → `range(11)` |
+| `true_false` | `True` ↔ `False` | `return True` → `return False` |
+| `return_none` | Return None | `return val` → `return None` |
 
 ## Bug Catalog Files
 
 ```
-stylebench-data/bugs/
-├── humanize-original.json        # Full details (for scoring)
-├── humanize-original-agent.json  # Agent-visible only (no diff)
-├── humanize-camelcase.json
-├── humanize-camelcase-agent.json
-└── ...
+stylebench-data/
+├── bugs/                  # Ad-hoc catalogs (991 bugs, for development)
+│   ├── humanize-original.json
+│   └── ...
+└── bugs_canonical/        # Canonical catalogs (400 bugs, for benchmark)
+    ├── humanize-original.json
+    ├── humanize-camelcase.json
+    └── ...                # 20 catalogs, 20 bugs each
 ```
 
 ## Python API
@@ -100,4 +151,10 @@ catalog.save('output.json')
 from transformers import CamelCaseTransformer
 t = CamelCaseTransformer(project_packages={'pkg'})
 t.transform_directory('src/', 'output/')
+
+# Benchmarking
+from benchmarks import BenchmarkHarness, ClaudeAgent
+harness = BenchmarkHarness(catalog_path, repo_path, repo_name)
+agent = ClaudeAgent(timeout=300, max_turns=10, model="haiku")
+result = harness.run_trial(agent, bug_id="humanize-original-001", mode="with_tests")
 ```
