@@ -10,6 +10,18 @@ from pathlib import Path
 from ..evaluator import detect_changes, hash_source_files
 from .base import Agent, BugContext, FixResult
 
+# Patterns that indicate the agent was rate-limited rather than genuinely failing
+_RATE_LIMIT_PATTERNS = [
+    "out of extra usage",
+    "hit your limit",
+    "rate limit",
+    "too many requests",
+    "429",
+    "request limit reached",
+    "tokens per min",
+    "requests per min",
+]
+
 
 class ClaudeAgent(Agent):
     """Agent that uses Claude Code CLI to fix bugs.
@@ -146,6 +158,10 @@ Instructions:
             # Hash all source files after the agent runs
             after_hashes = hash_source_files(context.repo_path)
 
+            # Check if the agent was rate-limited
+            output_lower = agent_output.lower()
+            was_rate_limited = any(p in output_lower for p in _RATE_LIMIT_PATTERNS)
+
             # Determine if any fix was attempted by comparing hashes
             fix_attempted = before_hashes != after_hashes
 
@@ -159,6 +175,7 @@ Instructions:
                 time_seconds=elapsed,
                 agent_output=agent_output,
                 error=None if result.returncode == 0 else f"Exit code: {result.returncode}",
+                rate_limited=was_rate_limited,
             )
 
         except subprocess.TimeoutExpired:

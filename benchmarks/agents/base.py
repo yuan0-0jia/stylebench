@@ -76,6 +76,9 @@ class FixResult:
     agent_output: str = ""
     """Raw output from the agent (for debugging)."""
 
+    rate_limited: bool = False
+    """Whether the agent was rate-limited by the API."""
+
 
 @dataclass
 class TrialResult:
@@ -142,6 +145,7 @@ class TrialResult:
                 "time_seconds": self.fix_result.time_seconds,
                 "error": self.fix_result.error,
                 "agent_output": self.fix_result.agent_output,
+                "rate_limited": self.fix_result.rate_limited,
             },
         }
 

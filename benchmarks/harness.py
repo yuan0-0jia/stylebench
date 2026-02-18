@@ -266,6 +266,13 @@ class BenchmarkHarness:
             result = self.run_trial(
                 agent=agent, bug_id=bug_id, mode=mode, test_timeout=test_timeout
             )
+
+            # If the agent was rate-limited, drop this result and stop the batch.
+            # The trial is not recorded so it will be retried on the next run.
+            if result.fix_result.rate_limited:
+                self.results.remove(result)  # undo the append in run_trial
+                break
+
             results.append(result)
 
             if delay_between_trials > 0 and i < total - 1:

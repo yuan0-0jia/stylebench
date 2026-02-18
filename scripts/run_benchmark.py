@@ -175,10 +175,13 @@ def parse_result_file(result_file: Path) -> list[dict]:
     for trial in data.get("results", []):
         bug_id = trial.get("bug_id", "")
         evaluation = trial.get("evaluation", "ERROR")
-        output = trial.get("fix_result", {}).get("agent_output", "") or ""
-        error = trial.get("fix_result", {}).get("error", "") or ""
-        # Only count as rate-limited if the agent also failed to fix the bug
-        rate_limited = evaluation != "PASS" and is_rate_limited(output + " " + error)
+        # Check for rate limiting via fix_result flag or output pattern matching
+        fix_result = trial.get("fix_result", {})
+        rate_limited = fix_result.get("rate_limited", False)
+        if not rate_limited:
+            output = fix_result.get("agent_output", "") or ""
+            error = fix_result.get("error", "") or ""
+            rate_limited = evaluation != "PASS" and is_rate_limited(output + " " + error)
         parsed.append(
             {
                 "bug_id": bug_id,
@@ -466,8 +469,7 @@ def main():
             print(f"Individual bugs completed: {_count_done(state)}")
             print("Run this script again after rate limit resets.")
             return
-
-        if parsed:
+        elif parsed:
             print(f"done ({succeeded}/{len(remaining)})")
         else:
             print("FAILED (will retry next run)")
