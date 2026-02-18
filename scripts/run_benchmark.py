@@ -127,7 +127,9 @@ def save_state(state: dict, state_file: Path, results_dir: Path):
         json.dump(state, f, indent=2)
 
 
-def get_bug_ids_for_batch(repo: str, style: str, limit: int, catalog_dir: str = "bugs") -> list[str]:
+def get_bug_ids_for_batch(
+    repo: str, style: str, limit: int, catalog_dir: str = "bugs",
+) -> list[str]:
     """Load bug IDs from a catalog, limited to first `limit`."""
     catalog = DATA_DIR / catalog_dir / f"{repo}-{style}.json"
     if not catalog.exists():
@@ -138,14 +140,20 @@ def get_bug_ids_for_batch(repo: str, style: str, limit: int, catalog_dir: str = 
     return bug_ids[:limit]
 
 
-def get_pending_bugs(state: dict, repo: str, style: str, mode: str, limit: int, catalog_dir: str = "bugs") -> list[str]:
+def get_pending_bugs(
+    state: dict, repo: str, style: str, mode: str, limit: int,
+    catalog_dir: str = "bugs",
+) -> list[str]:
     """Return bug IDs for this batch that haven't completed yet."""
     all_bugs = get_bug_ids_for_batch(repo, style, limit, catalog_dir)
     done = state.get("completed_bugs", {}).get(mode, {})
     return [b for b in all_bugs if b not in done]
 
 
-def is_batch_complete(state: dict, repo: str, style: str, mode: str, limit: int, catalog_dir: str = "bugs") -> bool:
+def is_batch_complete(
+    state: dict, repo: str, style: str, mode: str, limit: int,
+    catalog_dir: str = "bugs",
+) -> bool:
     """Check if all bugs in a batch are completed."""
     return len(get_pending_bugs(state, repo, style, mode, limit, catalog_dir)) == 0
 
@@ -304,7 +312,8 @@ def main():
     parser.add_argument(
         "--catalog-dir",
         default="bugs",
-        help="Bug catalog subdirectory under data dir (default: bugs, use bugs_canonical for canonical)",
+        help="Bug catalog subdirectory under data dir "
+        "(default: bugs, use bugs_canonical for canonical)",
     )
     parser.add_argument(
         "--manifest",
@@ -313,7 +322,8 @@ def main():
         help="Path to trial manifest JSON (for controlled runs with pre-captured test output)",
     )
     parser.add_argument(
-        "--yes", "-y", action="store_true", help="Skip confirmation prompts (for non-interactive use)"
+        "--yes", "-y", action="store_true",
+        help="Skip confirmation prompts (for non-interactive use)",
     )
     args = parser.parse_args()
 
@@ -348,7 +358,10 @@ def main():
     ]
 
     # Filter out fully completed batches
-    pending = [b for b in all_batches if not is_batch_complete(state, *b, args.limit, args.catalog_dir)]
+    pending = [
+        b for b in all_batches
+        if not is_batch_complete(state, *b, args.limit, args.catalog_dir)
+    ]
 
     # Count total completed bugs across all modes
     total_done_bugs = sum(len(bugs) for bugs in state.get("completed_bugs", {}).values())

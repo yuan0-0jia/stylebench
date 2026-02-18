@@ -24,8 +24,10 @@ from .evaluator import (
     get_bug_by_id,
     hide_tests,
     load_bug_catalog,
+    lock_tests,
     restore_tests,
     run_tests,
+    unlock_tests,
 )
 
 
@@ -170,10 +172,13 @@ class BenchmarkHarness:
                 test_output = before_result.output
                 failing_tests = before_result.failing_tests
 
-            # Hide tests if needed
+            # Protect tests from agent modification
             hidden_path = None
             if mode == "without_tests":
                 hidden_path = hide_tests(work_dir, self.repo_name)
+            else:
+                # with_tests: make test files read-only so agent can read but not edit
+                lock_tests(work_dir, self.repo_name)
 
             # Build context for agent — uses controlled test output
             context = BugContext(
@@ -189,9 +194,11 @@ class BenchmarkHarness:
             # Run the agent
             fix_result = agent.fix_bug(context)
 
-            # Restore tests if hidden
+            # Restore test access for evaluation
             if hidden_path is not None:
                 restore_tests(work_dir, hidden_path, self.repo_name)
+            else:
+                unlock_tests(work_dir, self.repo_name)
 
             # Evaluate the fix (always run tests fresh for evaluation)
             if not fix_result.success:
@@ -277,7 +284,13 @@ class BenchmarkHarness:
         """
         if filename is None:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            filename = f"results_{timestamp}.json"
+            # Include bug IDs and mode to avoid collisions when running parallel trials
+            if self.results:
+                bug_ids = "_".join(r.bug_id for r in self.results)
+                mode = self.results[0].mode
+                filename = f"results_{timestamp}_{bug_ids}_{mode}.json"
+            else:
+                filename = f"results_{timestamp}.json"
 
         output_path = self.output_dir / filename
 
@@ -333,9 +346,21 @@ class BenchmarkHarness:
             "by_evaluation": by_evaluation,
         }
 
+    # Known style names used in bug IDs
+    _KNOWN_STYLES = {"original", "camelcase", "snakecase", "badnames", "formatting", "verbose"}
+
     def _extract_style(self, bug_id: str) -> str:
-        """Extract style from bug ID (e.g., 'humanize-original-001' -> 'original')."""
-        parts = bug_id.split("-")
-        if len(parts) >= 2:
-            return parts[1]
+        """Extract style from bug ID.
+
+        Handles hyphenated repo names like python-markdown and more-itertools
+        by searching for known style names rather than splitting on hyphens.
+
+        Examples:
+            'humanize-original-001' -> 'original'
+            'python-markdown-camelcase-003' -> 'camelcase'
+            'more-itertools-badnames-012' -> 'badnames'
+        """
+        for style in self._KNOWN_STYLES:
+            if f"-{style}-" in bug_id:
+                return style
         return "unknown"

@@ -11,7 +11,6 @@ Usage:
 """
 
 import argparse
-import json
 import shutil
 import subprocess
 import sys
@@ -105,7 +104,7 @@ def phase1_apply_revert(verbose=False):
             if verbose:
                 print(f"  {repo}-{style}: {len(catalog.bugs)} bugs checked")
 
-    print(f"\nPhase 1 Results:")
+    print("\nPhase 1 Results:")
     print(f"  Total entries:     {total}")
     print(f"  Apply succeeded:   {apply_ok}/{total}")
     print(f"  Revert succeeded:  {revert_ok}/{total}")
@@ -223,9 +222,14 @@ def phase2_test_failures(sample_size=0, verbose=False):
                             if verbose:
                                 print(f"    {bug_id}: KILLED ({len(new_failures)} failures)")
                         else:
-                            failures.append((bug_id, f"exit={exit_code}, new_failures={len(new_failures)}"))
+                            failures.append(
+                                (bug_id, f"exit={exit_code}, new_failures={len(new_failures)}")
+                            )
                             if verbose:
-                                print(f"    {bug_id}: SURVIVED (exit={exit_code}, new={len(new_failures)})")
+                                print(
+                                    f"    {bug_id}: SURVIVED "
+                                    f"(exit={exit_code}, new={len(new_failures)})"
+                                )
                     except subprocess.TimeoutExpired:
                         failures.append((bug_id, "timeout"))
                     except Exception as e:
@@ -235,7 +239,7 @@ def phase2_test_failures(sample_size=0, verbose=False):
                         file_path.write_text(original_content)
                         total_tested += 1
 
-    print(f"\nPhase 2 Results:")
+    print("\nPhase 2 Results:")
     print(f"  Tested:  {total_tested}")
     print(f"  Killed:  {total_killed}/{total_tested}")
 
@@ -251,8 +255,14 @@ def phase2_test_failures(sample_size=0, verbose=False):
 
 def main():
     parser = argparse.ArgumentParser(description="Validate canonical bug catalogs")
-    parser.add_argument("--test-all", action="store_true", help="Test ALL bugs for test failures (slow)")
-    parser.add_argument("--test-sample", type=int, default=0, help="Test N bugs per catalog for failures")
+    parser.add_argument(
+        "--test-all", action="store_true",
+        help="Test ALL bugs for test failures (slow)",
+    )
+    parser.add_argument(
+        "--test-sample", type=int, default=0,
+        help="Test N bugs per catalog for failures",
+    )
     parser.add_argument("-v", "--verbose", action="store_true")
     args = parser.parse_args()
 

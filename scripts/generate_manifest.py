@@ -27,7 +27,9 @@ ALL_REPOS = ["humanize", "validators", "python-markdown", "more-itertools"]
 ALL_STYLES = ["original", "camelcase", "snakecase", "badnames", "formatting"]
 
 
-def load_catalog_bugs(repo: str, style: str, limit: int | None = None, catalog_dir: str = "bugs") -> list[dict]:
+def load_catalog_bugs(
+    repo: str, style: str, limit: int | None = None, catalog_dir: str = "bugs",
+) -> list[dict]:
     """Load bugs from a catalog file."""
     catalog_path = DATA_DIR / catalog_dir / f"{repo}-{style}.json"
     if not catalog_path.exists():
@@ -56,10 +58,12 @@ def main():
     parser.add_argument(
         "--catalog-dir",
         default="bugs",
-        help="Bug catalog subdirectory under data dir (default: bugs, use bugs_canonical for canonical)",
+        help="Bug catalog subdirectory under data dir "
+        "(default: bugs, use bugs_canonical for canonical)",
     )
     parser.add_argument(
-        "--output", type=str, default=None, help="Output path (default: auto-named in stylebench-data)"
+        "--output", type=str, default=None,
+        help="Output path (default: auto-named in stylebench-data)",
     )
     args = parser.parse_args()
 

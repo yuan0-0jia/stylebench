@@ -7,6 +7,7 @@ import subprocess
 import time
 from pathlib import Path
 
+from ..evaluator import detect_changes, hash_source_files
 from .base import Agent, BugContext, FixResult
 
 
@@ -113,8 +114,8 @@ Instructions:
         cmd = self._build_command(prompt, context.repo_path)
 
         try:
-            # Get initial git state (repo has bug applied, so should have diff)
-            initial_diff = self._get_git_diff(context.repo_path)
+            # Hash all source files before the agent runs
+            before_hashes = hash_source_files(context.repo_path)
 
             # Run Claude Code with retry on API errors
             result = None
@@ -142,29 +143,19 @@ Instructions:
             if last_error:
                 agent_output = f"[Retried due to: {last_error}]\n" + agent_output
 
-            # Get changes made by Claude
-            final_diff = self._get_git_diff(context.repo_path)
+            # Hash all source files after the agent runs
+            after_hashes = hash_source_files(context.repo_path)
 
-            # Determine if any fix was attempted
-            # Success if: initial had diff (bug applied) and final diff changed
-            # This includes the case where Claude fixed the bug back to original
-            # (final_diff would be empty, but it changed from initial)
-            fix_attempted = initial_diff != final_diff
+            # Determine if any fix was attempted by comparing hashes
+            fix_attempted = before_hashes != after_hashes
 
-            # Get changed files - compare to HEAD to see what Claude touched
-            # even if it restored to original
-            changed_files = self._get_changed_files(context.repo_path)
-            if not changed_files and fix_attempted:
-                # Claude fixed back to original - the bug file was touched
-                # Extract file from initial diff
-                for line in initial_diff.split("\n"):
-                    if line.startswith("+++ b/"):
-                        changed_files.append(line[6:])
+            # Get list of changed files from hash comparison
+            changed_files = detect_changes(before_hashes, after_hashes)
 
             return FixResult(
                 success=fix_attempted,
                 files_changed=changed_files,
-                patch=final_diff if final_diff else "(restored to original)",
+                patch="(hash-based change detection)",
                 time_seconds=elapsed,
                 agent_output=agent_output,
                 error=None if result.returncode == 0 else f"Exit code: {result.returncode}",
@@ -194,31 +185,3 @@ Instructions:
                 error=str(e),
             )
 
-    def _get_git_diff(self, repo_path: Path) -> str:
-        """Get git diff of changes in a repository."""
-        try:
-            result = subprocess.run(
-                ["git", "diff"],
-                cwd=repo_path,
-                capture_output=True,
-                text=True,
-                timeout=30,
-            )
-            return result.stdout
-        except Exception:
-            return ""
-
-    def _get_changed_files(self, repo_path: Path) -> list[str]:
-        """Get list of files changed in a repository."""
-        try:
-            result = subprocess.run(
-                ["git", "diff", "--name-only"],
-                cwd=repo_path,
-                capture_output=True,
-                text=True,
-                timeout=30,
-            )
-            files = [f.strip() for f in result.stdout.strip().split("\n") if f.strip()]
-            return files
-        except Exception:
-            return []

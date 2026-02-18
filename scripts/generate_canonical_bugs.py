@@ -23,7 +23,6 @@ Usage:
 """
 
 import argparse
-import json
 import shutil
 import subprocess
 import sys
@@ -187,7 +186,9 @@ def _apply_original_mutation(file_path: Path, site: MutationSite) -> str | None:
         return None
 
 
-def _run_tests_in(repo_path: Path, repo: str, timeout: int = TEST_TIMEOUT) -> tuple[int, str, list[str]]:
+def _run_tests_in(
+    repo_path: Path, repo: str, timeout: int = TEST_TIMEOUT
+) -> tuple[int, str, list[str]]:
     """Run tests in a repo copy. Returns (exit_code, output, failing_tests)."""
     config = get_config(repo)
     test_command = config.get_test_command(repo_path, external=False)
@@ -433,7 +434,9 @@ def save_catalogs(catalogs: dict[str, BugCatalog], verbose: bool = False):
         log(f"  Saved {path.name} ({len(catalog.bugs)} bugs)", verbose)
 
 
-def generate_canonical_bugs(repo: str, count: int = 20, max_per_type: int = 0, verbose: bool = False):
+def generate_canonical_bugs(
+    repo: str, count: int = 20, max_per_type: int = 0, verbose: bool = False
+):
     """Full pipeline for one repo."""
     log(f"\n{'='*60}", verbose)
     log(f"Generating canonical bugs for: {repo}", verbose)
@@ -512,7 +515,10 @@ def main():
     repos = ALL_REPOS if args.all else [args.repo]
 
     for repo in repos:
-        generate_canonical_bugs(repo, count=args.count, max_per_type=args.max_per_type, verbose=args.verbose)
+        generate_canonical_bugs(
+            repo, count=args.count, max_per_type=args.max_per_type,
+            verbose=args.verbose,
+        )
 
     print("\nAll done!")
     print(f"Catalogs saved to: {DATA_DIR / 'bugs_canonical'}/")

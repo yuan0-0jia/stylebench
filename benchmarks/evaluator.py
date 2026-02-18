@@ -157,8 +157,9 @@ def create_working_copy(source_repo: Path, dest_dir: Path | None = None) -> Path
     if dest_dir is None:
         dest_dir = Path(tempfile.mkdtemp(prefix="stylebench_"))
 
-    # Directories to exclude (contain cached/compiled code)
-    exclude_dirs = {".venv", "__pycache__", ".pytest_cache", ".ruff_cache", ".mypy_cache"}
+    # Directories to exclude (contain cached/compiled code, and .git to prevent
+    # agents from using git diff to discover bug locations)
+    exclude_dirs = {".venv", "__pycache__", ".pytest_cache", ".ruff_cache", ".mypy_cache", ".git"}
 
     def ignore_patterns(directory: str, files: list[str]) -> list[str]:
         """Return files to ignore during copy."""
@@ -423,55 +424,91 @@ def evaluate_fix(
     return "FAIL"
 
 
-def get_git_diff(repo_path: Path) -> str:
-    """Get git diff of changes in a repository.
+def hash_source_files(repo_path: Path) -> dict[str, str]:
+    """Hash all Python source files in a repository.
 
     Args:
         repo_path: Path to the repository.
 
     Returns:
-        Git diff string, or empty string if no changes or not a git repo.
+        Dictionary mapping relative file paths to their SHA-256 hashes.
     """
-    try:
-        result = subprocess.run(
-            ["git", "diff"],
-            cwd=repo_path,
-            capture_output=True,
-            text=True,
-            timeout=30,
-        )
-        return result.stdout
-    except Exception:
-        return ""
+    import hashlib
+
+    hashes = {}
+    for py_file in sorted(repo_path.rglob("*.py")):
+        # Skip hidden dirs, caches, and venvs
+        parts = py_file.relative_to(repo_path).parts
+        if any(p.startswith(".") or p in {"__pycache__", ".venv"} for p in parts):
+            continue
+        try:
+            content = py_file.read_bytes()
+            rel_path = str(py_file.relative_to(repo_path))
+            hashes[rel_path] = hashlib.sha256(content).hexdigest()
+        except Exception:
+            continue
+    return hashes
 
 
-def get_changed_files(repo_path: Path) -> list[str]:
-    """Get list of files changed in a repository.
+def detect_changes(before_hashes: dict[str, str], after_hashes: dict[str, str]) -> list[str]:
+    """Detect which files changed by comparing hash snapshots.
+
+    Args:
+        before_hashes: File hashes before agent ran.
+        after_hashes: File hashes after agent ran.
+
+    Returns:
+        List of relative file paths that were added, modified, or deleted.
+    """
+    changed = []
+    all_files = set(before_hashes) | set(after_hashes)
+    for f in sorted(all_files):
+        if before_hashes.get(f) != after_hashes.get(f):
+            changed.append(f)
+    return changed
+
+
+def lock_tests(repo_path: Path, repo_name: str) -> None:
+    """Make test files read-only so agents cannot modify them.
+
+    Used in 'with_tests' mode where tests are visible but should not be edited.
 
     Args:
         repo_path: Path to the repository.
-
-    Returns:
-        List of changed file paths relative to repo root.
+        repo_name: Name of the repository.
     """
-    try:
-        result = subprocess.run(
-            ["git", "diff", "--name-only"],
-            cwd=repo_path,
-            capture_output=True,
-            text=True,
-            timeout=30,
-        )
-        files = [f.strip() for f in result.stdout.strip().split("\n") if f.strip()]
-        return files
-    except Exception:
-        return []
+    config = get_config(repo_name)
+    test_dir = repo_path / config.test_dir
+
+    if not test_dir.exists():
+        return
+
+    for py_file in test_dir.rglob("*.py"):
+        py_file.chmod(0o444)
+
+
+def unlock_tests(repo_path: Path, repo_name: str) -> None:
+    """Restore test files to writable for evaluation.
+
+    Args:
+        repo_path: Path to the repository.
+        repo_name: Name of the repository.
+    """
+    config = get_config(repo_name)
+    test_dir = repo_path / config.test_dir
+
+    if not test_dir.exists():
+        return
+
+    for py_file in test_dir.rglob("*.py"):
+        py_file.chmod(0o644)
 
 
 def hide_tests(repo_path: Path, repo_name: str) -> Path | None:
     """Hide test directory for 'without_tests' mode.
 
-    Moves the test directory to a temporary location.
+    Moves the test directory to a temp dir outside the repo tree so agents
+    cannot discover tests via ls -a, find, or any other file listing.
 
     Args:
         repo_path: Path to the repository.
@@ -486,8 +523,8 @@ def hide_tests(repo_path: Path, repo_name: str) -> Path | None:
     if not test_dir.exists():
         return None
 
-    # Move to temp location
-    hidden_path = repo_path / f".{config.test_dir}_hidden"
+    # Move to a temp dir OUTSIDE the repo tree
+    hidden_path = Path(tempfile.mkdtemp(prefix="stylebench_hidden_tests_")) / config.test_dir
     shutil.move(test_dir, hidden_path)
 
     return hidden_path
@@ -498,7 +535,7 @@ def restore_tests(repo_path: Path, hidden_path: Path, repo_name: str) -> bool:
 
     Args:
         repo_path: Path to the repository.
-        hidden_path: Path where tests were hidden.
+        hidden_path: Path where tests were hidden (outside the repo tree).
         repo_name: Name of the repository.
 
     Returns:
@@ -514,6 +551,10 @@ def restore_tests(repo_path: Path, hidden_path: Path, repo_name: str) -> bool:
         if test_dir.exists():
             shutil.rmtree(test_dir)
         shutil.move(hidden_path, test_dir)
+        # Clean up the temp parent directory
+        hidden_parent = hidden_path.parent
+        if hidden_parent.name.startswith("stylebench_hidden_tests_"):
+            shutil.rmtree(hidden_parent, ignore_errors=True)
         return True
     except Exception:
         return False

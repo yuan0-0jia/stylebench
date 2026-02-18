@@ -266,7 +266,9 @@ def _map_operator_mutation(
     orig_func = orig_funcs[func_idx]
 
     # Count which Nth occurrence of the operator this is
-    op_nodes = _collect_operator_nodes(original_source, orig_func, site.original_text, site.mutation_type)
+    op_nodes = _collect_operator_nodes(
+        original_source, orig_func, site.original_text, site.mutation_type
+    )
     n = None
     for i, node in enumerate(op_nodes):
         if node.start_byte == site.start_byte:
@@ -287,7 +289,9 @@ def _map_operator_mutation(
     tgt_func = tgt_funcs[func_idx]
 
     # Find the Nth occurrence in the target function
-    tgt_op_nodes = _collect_operator_nodes(target_source, tgt_func, site.original_text, site.mutation_type)
+    tgt_op_nodes = _collect_operator_nodes(
+        target_source, tgt_func, site.original_text, site.mutation_type
+    )
     if n >= len(tgt_op_nodes):
         return None
 

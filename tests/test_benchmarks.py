@@ -15,15 +15,17 @@ from benchmarks import (
     TrialResult,
     apply_bug,
     create_working_copy,
+    detect_changes,
     evaluate_fix,
     get_bug_by_id,
-    get_changed_files,
-    get_git_diff,
+    hash_source_files,
     hide_tests,
     load_bug_catalog,
+    lock_tests,
     restore_tests,
     revert_bug,
     run_tests,
+    unlock_tests,
 )
 
 
@@ -357,6 +359,42 @@ class TestHideRestoreTests:
             assert not hidden_path.exists()
 
 
+class TestLockUnlockTests:
+    """Tests for lock_tests and unlock_tests functions."""
+
+    def test_lock_makes_tests_readonly(self, humanize_repo):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            work_dir = create_working_copy(humanize_repo, Path(tmpdir) / "work")
+            test_dir = work_dir / "tests"
+            test_file = next(test_dir.rglob("*.py"))
+
+            # Lock tests
+            lock_tests(work_dir, "humanize")
+
+            # Test files should be read-only
+            import os
+
+            assert not os.access(test_file, os.W_OK)
+
+            # Writing should raise PermissionError
+            with pytest.raises(PermissionError):
+                test_file.write_text("should fail")
+
+    def test_unlock_restores_writable(self, humanize_repo):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            work_dir = create_working_copy(humanize_repo, Path(tmpdir) / "work")
+            test_dir = work_dir / "tests"
+            test_file = next(test_dir.rglob("*.py"))
+
+            lock_tests(work_dir, "humanize")
+            unlock_tests(work_dir, "humanize")
+
+            # Test files should be writable again
+            import os
+
+            assert os.access(test_file, os.W_OK)
+
+
 class TestRunTests:
     """Tests for run_tests function."""
 
@@ -387,18 +425,17 @@ class TestRunTests:
             assert len(result.failing_tests) > 0
 
 
-class TestGitDiff:
-    """Tests for get_git_diff and get_changed_files functions."""
+class TestHashChangeDetection:
+    """Tests for hash_source_files and detect_changes functions."""
 
     def test_no_changes(self, humanize_repo):
         with tempfile.TemporaryDirectory() as tmpdir:
             work_dir = create_working_copy(humanize_repo, Path(tmpdir) / "work")
 
-            diff = get_git_diff(work_dir)
-            changed = get_changed_files(work_dir)
+            before = hash_source_files(work_dir)
+            after = hash_source_files(work_dir)
 
-            # No changes yet
-            assert diff == ""
+            changed = detect_changes(before, after)
             assert changed == []
 
     def test_with_changes(self, humanize_catalog, humanize_repo):
@@ -407,15 +444,22 @@ class TestGitDiff:
         with tempfile.TemporaryDirectory() as tmpdir:
             work_dir = create_working_copy(humanize_repo, Path(tmpdir) / "work")
 
+            before = hash_source_files(work_dir)
+
             # Apply bug (makes a change)
             apply_bug(work_dir, hidden)
 
-            diff = get_git_diff(work_dir)
-            changed = get_changed_files(work_dir)
+            after = hash_source_files(work_dir)
+            changed = detect_changes(before, after)
 
-            assert diff != ""
             assert len(changed) > 0
             assert hidden["file_path"] in changed
+
+    def test_no_git_dir_in_working_copy(self, humanize_repo):
+        """Verify .git is excluded from working copies to prevent diff leakage."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            work_dir = create_working_copy(humanize_repo, Path(tmpdir) / "work")
+            assert not (work_dir / ".git").exists()
 
 
 class TestClaudeAgent:
@@ -522,6 +566,9 @@ class TestBenchmarkHarness:
 
         assert harness._extract_style("humanize-original-001") == "original"
         assert harness._extract_style("humanize-verbose-042") == "verbose"
+        assert harness._extract_style("python-markdown-original-001") == "original"
+        assert harness._extract_style("python-markdown-camelcase-003") == "camelcase"
+        assert harness._extract_style("more-itertools-badnames-012") == "badnames"
         assert harness._extract_style("unknown") == "unknown"
 
     def test_compute_summary_empty(self, humanize_catalog, humanize_repo):
