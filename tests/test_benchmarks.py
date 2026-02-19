@@ -798,7 +798,7 @@ class TestRateLimitWorkflow:
     def test_script_parse_result_file(self, tmp_path):
         """Script layer should detect rate limiting from metadata."""
         # Add scripts dir to path so we can import run_benchmark
-        sys.path.insert(0, str(Path("/Users/yuan/stylebench/scripts")))
+        sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
         try:
             import run_benchmark
         finally:
@@ -828,7 +828,7 @@ class TestRateLimitWorkflow:
 
     def test_script_pending_bugs_after_rate_limit(self, tmp_path):
         """Rate-limited bug should show up as pending on resume."""
-        sys.path.insert(0, str(Path("/Users/yuan/stylebench/scripts")))
+        sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
         try:
             import run_benchmark
         finally:
