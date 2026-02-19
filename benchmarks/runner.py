@@ -27,13 +27,12 @@ AGENT_REGISTRY = {
 }
 
 
-def get_agent(name: str, timeout: int = 300, max_turns: int = 10, model: str | None = None):
+def get_agent(name: str, timeout: int = 180, model: str | None = None):
     """Get an agent by name.
 
     Args:
         name: Agent name (see AGENT_REGISTRY).
         timeout: Timeout in seconds.
-        max_turns: Maximum agentic turns (agent-specific, ignored if unsupported).
         model: Model to use.
 
     Returns:
@@ -53,8 +52,6 @@ def get_agent(name: str, timeout: int = 300, max_turns: int = 10, model: str | N
     kwargs = {}
     if "timeout" in params:
         kwargs["timeout"] = timeout
-    if "max_turns" in params:
-        kwargs["max_turns"] = max_turns
     if "model" in params and model is not None:
         kwargs["model"] = model
 
@@ -122,19 +119,13 @@ def main():
         "--timeout",
         type=int,
         default=300,
-        help="Agent timeout in seconds (default: 300)",
+        help="Agent timeout in seconds (default: 180)",
     )
     parser.add_argument(
         "--test-timeout",
         type=int,
         default=120,
         help="Test timeout in seconds (default: 120)",
-    )
-    parser.add_argument(
-        "--max-turns",
-        type=int,
-        default=10,
-        help="Max agentic turns (default: 10)",
     )
     parser.add_argument(
         "--model",
@@ -193,7 +184,6 @@ def main():
     agent = get_agent(
         args.agent,
         timeout=args.timeout,
-        max_turns=args.max_turns,
         model=args.model,
     )
 

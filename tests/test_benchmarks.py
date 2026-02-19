@@ -470,15 +470,13 @@ class TestClaudeAgent:
 
     def test_initialization_defaults(self):
         agent = ClaudeAgent()
-        assert agent.timeout == 300
-        assert agent.max_turns == 10
+        assert agent.timeout == 180
         assert agent.model is None
         assert agent.get_name() == "claude"
 
     def test_initialization_custom(self):
-        agent = ClaudeAgent(timeout=600, max_turns=20, model="opus")
+        agent = ClaudeAgent(timeout=600, model="opus")
         assert agent.timeout == 600
-        assert agent.max_turns == 20
         assert agent.model == "opus"
 
     def test_build_prompt_with_tests(self):
@@ -515,16 +513,14 @@ class TestClaudeAgent:
         assert cmd[0] == "claude"
         assert "--print" in cmd
         assert "--dangerously-skip-permissions" in cmd
-        assert "--max-turns=10" in cmd
         assert "Fix the bug" in cmd
 
     def test_build_command_with_model(self):
-        agent = ClaudeAgent(model="opus", max_turns=5)
+        agent = ClaudeAgent(model="opus")
         cmd = agent._build_command("Fix the bug", Path("/tmp/repo"))
 
         assert "--model" in cmd
         assert "opus" in cmd
-        assert "--max-turns=5" in cmd
 
     def test_fix_bug_cli_not_found(self):
         """Test handling when Claude CLI is not installed."""

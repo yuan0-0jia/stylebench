@@ -7,7 +7,7 @@ Features:
 - Resumes from where it left off, only re-running incomplete bugs
 - Supports multiple agents (claude, gemini) with separate state/results
 - Supports model selection (e.g., --model haiku, --model sonnet)
-- Configurable max-turns and delays between trials
+- Configurable delays between trials
 
 Usage:
     # Start or resume benchmark (default: claude, default model)
@@ -19,9 +19,6 @@ Usage:
 
     # Run with gemini agent
     python scripts/run_benchmark.py --agent gemini
-
-    # Control max turns (fewer turns = less quota usage)
-    python scripts/run_benchmark.py --agent claude --model haiku --max-turns 5
 
     # Reset progress and start fresh
     python scripts/run_benchmark.py --agent claude --model haiku --reset
@@ -52,12 +49,6 @@ DELAY_BETWEEN_BATCHES = 5  # seconds every 5 batches
 AGENT_TRIAL_DELAY = {
     "claude": 0,
     "gemini": 30,
-}
-
-# Default max turns per agent (can be overridden with --max-turns)
-AGENT_DEFAULT_MAX_TURNS = {
-    "claude": 10,
-    "gemini": 10,  # Gemini CLI manages its own turns
 }
 
 ALL_REPOS = ["humanize", "validators", "python-markdown", "more-itertools"]
@@ -184,7 +175,6 @@ def find_result_file_after(results_dir: Path, timestamp: float) -> Path | None:
 def run_batch(
     agent: str,
     model: str | None,
-    max_turns: int,
     repo: str,
     style: str,
     mode: str,
@@ -225,8 +215,6 @@ def run_batch(
         agent,
         "--mode",
         mode,
-        "--max-turns",
-        str(max_turns),
         "--output-dir",
         str(results_dir),
         "--trial-delay",
@@ -285,12 +273,6 @@ def main():
     parser = argparse.ArgumentParser(description="Run benchmark with rate limit handling")
     parser.add_argument("--agent", default="claude", help="Agent to use (claude, gemini)")
     parser.add_argument("--model", default=None, help="Model to use (e.g., haiku, sonnet, opus)")
-    parser.add_argument(
-        "--max-turns",
-        type=int,
-        default=None,
-        help="Max agentic turns per trial (default: agent-specific)",
-    )
     parser.add_argument("--reset", action="store_true", help="Reset progress and start fresh")
     parser.add_argument("--repos", nargs="+", default=ALL_REPOS, help="Repos to test")
     parser.add_argument("--styles", nargs="+", default=ALL_STYLES, help="Styles to test")
@@ -314,7 +296,6 @@ def main():
     )
     args = parser.parse_args()
 
-    max_turns = args.max_turns or AGENT_DEFAULT_MAX_TURNS.get(args.agent, 10)
     run_id = _get_run_id(args.agent, args.model)
     results_dir, state_file = _get_dirs(args.agent, args.model)
     results_dir.mkdir(parents=True, exist_ok=True)
@@ -323,7 +304,7 @@ def main():
     if args.reset:
         state = _empty_state()
         state["started_at"] = datetime.now().isoformat()
-        state["config"] = {"agent": args.agent, "model": args.model, "max_turns": max_turns}
+        state["config"] = {"agent": args.agent, "model": args.model}
         save_state(state, state_file, results_dir)
         print("Progress reset.")
     else:
@@ -336,7 +317,7 @@ def main():
 
     if state.get("started_at") is None:
         state["started_at"] = datetime.now().isoformat()
-        state["config"] = {"agent": args.agent, "model": args.model, "max_turns": max_turns}
+        state["config"] = {"agent": args.agent, "model": args.model}
         save_state(state, state_file, results_dir)
 
     # Build list of batches
@@ -357,7 +338,6 @@ def main():
     print("=" * 60)
     print(f"Agent: {args.agent}")
     print(f"Model: {args.model or '(default)'}")
-    print(f"Max turns: {max_turns}")
     print(f"Total batches: {len(all_batches)}")
     print(f"Fully completed batches: {len(all_batches) - len(pending)}")
     print(f"Batches with remaining work: {len(pending)}")
@@ -430,7 +410,7 @@ def main():
             )
 
         parsed, had_rate_limit = run_batch(
-            args.agent, args.model, max_turns, repo, style, mode, remaining, results_dir,
+            args.agent, args.model, repo, style, mode, remaining, results_dir,
             manifest_path=Path(args.manifest) if args.manifest else None,
             catalog_dir=args.catalog_dir,
         )

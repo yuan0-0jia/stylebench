@@ -22,21 +22,18 @@ class ClaudeAgent(Agent):
 
     def __init__(
         self,
-        timeout: int = 300,
-        max_turns: int = 10,
+        timeout: int = 180,
         model: str | None = None,
         max_retries: int = 3,
     ):
         """Initialize the Claude agent.
 
         Args:
-            timeout: Maximum time in seconds for fix attempt (default: 5 min).
-            max_turns: Maximum number of agentic turns (default: 10).
+            timeout: Maximum time in seconds for fix attempt (default: 3 min).
             model: Model to use (default: None, uses Claude Code default).
             max_retries: Maximum retries on API errors (default: 3).
         """
         self.timeout = timeout
-        self.max_turns = max_turns
         self.model = model
         self.max_retries = max_retries
 
@@ -89,7 +86,6 @@ Instructions:
             "claude",
             "--print",  # Non-interactive mode
             "--dangerously-skip-permissions",  # Skip permission prompts
-            f"--max-turns={self.max_turns}",
         ]
 
         if self.model:
