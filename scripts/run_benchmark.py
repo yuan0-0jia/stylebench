@@ -243,8 +243,9 @@ def run_batch(
     cmd.extend(["--bugs", *bug_ids])
 
     before = time.time()
+    proc = None
     try:
-        subprocess.run(
+        proc = subprocess.run(
             cmd,
             cwd="/Users/yuan/stylebench",
             capture_output=True,
@@ -259,6 +260,9 @@ def run_batch(
     # Always try to parse results, even after timeout (runner may have written partial results)
     result_file = find_result_file_after(results_dir, before)
     if result_file is None:
+        if proc is not None and proc.returncode != 0:
+            stderr_snippet = (proc.stderr or "").strip()[-500:]
+            print(f"\n    Runner failed (exit {proc.returncode}): {stderr_snippet}", end=" ")
         return [], False
 
     parsed, hit_rate_limit = parse_result_file(result_file)

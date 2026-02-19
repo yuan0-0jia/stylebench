@@ -171,7 +171,7 @@ For the benchmark, we use **canonical catalogs** (`bugs_canonical/`) where the s
 
 - 20 catalogs (4 repos × 5 styles), 20 bugs each = **400 bugs**
 - All bugs have `line_number` and `context` for precise application
-- 8+ mutation types per repo
+- 7-8 mutation types per repo (depends on code characteristics)
 
 ```bash
 # Generate canonical catalogs (already done)
@@ -183,14 +183,14 @@ python scripts/generate_bugs.py humanize camelcase --count 50
 
 ### Legacy Bug Catalogs
 
-The `bugs/` directory contains **991 ad-hoc validated bugs** (used for development/testing, not the benchmark):
+The `bugs/` directory contains **872 ad-hoc validated bugs** (used for development/testing, not the benchmark):
 
-| Repo | Bugs per Style | Total |
-|------|----------------|-------|
-| humanize | 30 | 150 |
-| validators | 30 | 150 |
-| python-markdown | 50 | 250 |
-| more-itertools | 30 | 150 |
+| Repo | Bugs (across 5 styles) |
+|------|------------------------|
+| humanize | 233 |
+| validators | 191 |
+| python-markdown | 200 |
+| more-itertools | 248 |
 
 ---
 
@@ -267,7 +267,7 @@ The harness detects rate-limited API responses and handles them cleanly:
 6. Restore tests, run tests on agent's fix
 7. Score: PASS / FAIL / ERROR / TIMEOUT / NO_FIX
 
-### Pilot Results (200 trials, Haiku)
+### Pilot Results (200 trials, Claude Haiku 4.5)
 
 | Metric | Value |
 |--------|-------|
