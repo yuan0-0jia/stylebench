@@ -21,14 +21,14 @@ class GeminiAgent(Agent):
 
     def __init__(
         self,
-        timeout: int = 300,
+        timeout: int = 180,
         model: str | None = None,
         sandbox: bool = False,
     ):
         """Initialize the Gemini agent.
 
         Args:
-            timeout: Maximum time in seconds for fix attempt (default: 5 min).
+            timeout: Maximum time in seconds for fix attempt (default: 3 min).
             model: Model to use (default: None, uses Gemini CLI default).
             sandbox: Whether to run in sandbox mode (default: False).
         """
