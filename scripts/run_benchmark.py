@@ -425,9 +425,7 @@ def main():
             state["rate_limited_at"] = datetime.now().isoformat()
             state["current"] = None
             save_state(state, state_file, results_dir)
-            print()
-            print("Rate limit detected. Partial progress saved.")
-            print(f"Individual bugs completed: {_count_done(state)}")
+            _print_status_summary(state, all_batches, args.limit, args.catalog_dir)
             print("Run this script again after rate limit resets.")
             return
         elif parsed:
@@ -446,14 +444,53 @@ def main():
     state["current"] = None
     save_state(state, state_file, results_dir)
 
-    print()
+    _print_status_summary(state, all_batches, args.limit, args.catalog_dir)
     print("Benchmark complete!")
-    print(f"Individual bugs completed: {_count_done(state)}")
     print(f"Results saved to: {results_dir}")
 
 
 def _count_done(state: dict) -> int:
     return sum(len(bugs) for bugs in state.get("completed_bugs", {}).values())
+
+
+def _print_status_summary(state: dict, all_batches: list, limit: int, catalog_dir: str):
+    """Print a detailed status summary of benchmark progress."""
+    total_done = _count_done(state)
+    total_expected = len(all_batches) * limit
+    pct = total_done * 100 / total_expected if total_expected else 0
+
+    # Count by evaluation
+    evals = {}
+    for mode_bugs in state.get("completed_bugs", {}).values():
+        for ev in mode_bugs.values():
+            evals[ev] = evals.get(ev, 0) + 1
+
+    # Count by mode
+    mode_counts = {}
+    for mode, mode_bugs in state.get("completed_bugs", {}).items():
+        mode_counts[mode] = len(mode_bugs)
+
+    # Count completed batches
+    completed_batches = sum(
+        1 for b in all_batches
+        if is_batch_complete(state, *b, limit, catalog_dir)
+    )
+
+    print()
+    print("=" * 60)
+    print(f"Status: {total_done}/{total_expected} trials ({pct:.1f}%)")
+    print(f"Batches: {completed_batches}/{len(all_batches)}")
+    print(f"Remaining: {total_expected - total_done} trials")
+    if mode_counts:
+        print(f"By mode: {', '.join(f'{m}: {c}' for m, c in sorted(mode_counts.items()))}")
+    if evals:
+        print(f"By result: {', '.join(f'{e}: {c}' for e, c in sorted(evals.items()))}")
+    if state.get("started_at"):
+        started = datetime.fromisoformat(state["started_at"])
+        elapsed = datetime.now() - started
+        hours = elapsed.total_seconds() / 3600
+        print(f"Elapsed: {hours:.1f}h since first run")
+    print("=" * 60)
 
 
 if __name__ == "__main__":
