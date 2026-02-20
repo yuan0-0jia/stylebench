@@ -233,12 +233,14 @@ def main():
         print("RESULTS SUMMARY")
         print("=" * 60)
 
-        print(f"Total trials: {len(results)}")
-        print(f"  PASS:    {passed:3d} ({100 * passed / len(results):.1f}%)")
-        print(f"  FAIL:    {failed:3d} ({100 * failed / len(results):.1f}%)")
-        print(f"  NO_FIX:  {no_fix:3d} ({100 * no_fix / len(results):.1f}%)")
-        print(f"  ERROR:   {errors:3d} ({100 * errors / len(results):.1f}%)")
-        print(f"  TIMEOUT: {timeouts:3d} ({100 * timeouts / len(results):.1f}%)")
+        n = len(results)
+        print(f"Total trials: {n}")
+        if n > 0:
+            print(f"  PASS:    {passed:3d} ({100 * passed / n:.1f}%)")
+            print(f"  FAIL:    {failed:3d} ({100 * failed / n:.1f}%)")
+            print(f"  NO_FIX:  {no_fix:3d} ({100 * no_fix / n:.1f}%)")
+            print(f"  ERROR:   {errors:3d} ({100 * errors / n:.1f}%)")
+            print(f"  TIMEOUT: {timeouts:3d} ({100 * timeouts / n:.1f}%)")
         print()
         print(f"Results saved to: {output_path}")
 
