@@ -47,12 +47,18 @@ atexit.register(_cleanup_all_processes)
 
 def _run_with_cleanup(cmd, cwd, timeout, capture_output=True, text=True):
     """Run a subprocess with process group cleanup on timeout/interrupt."""
+    # Strip VIRTUAL_ENV so uv creates/uses the target repo's own venv.
+    # Set SETUPTOOLS_SCM_PRETEND_VERSION so repos using setuptools-scm
+    # can build without .git (which is excluded from working copies).
+    env = {k: v for k, v in os.environ.items() if k != "VIRTUAL_ENV"}
+    env.setdefault("SETUPTOOLS_SCM_PRETEND_VERSION", "0.0.0")
     proc = subprocess.Popen(
         cmd,
         cwd=cwd,
         stdout=subprocess.PIPE if capture_output else None,
         stderr=subprocess.PIPE if capture_output else None,
         text=text,
+        env=env,
         start_new_session=True,  # Create new process group
     )
 
@@ -397,13 +403,14 @@ def _parse_test_counts(output: str) -> tuple[int, int, int]:
     errors = 0
     skipped = 0
 
-    # Find the last pytest summary line (e.g., "===== 3 passed, 1 failed, 1 error =====")
+    # Find the last pytest summary line.
+    # Verbose mode: "===== 3 passed, 1 failed ====="; quiet mode: "3 passed, 1 failed in 0.12s"
     last_summary = None
     for line in output.split("\n"):
         stripped = line.strip()
         s_lower = stripped.lower()
-        if stripped.startswith("=") and (
-            "passed" in s_lower or "failed" in s_lower or "error" in s_lower
+        if ("passed" in s_lower or "failed" in s_lower or "error" in s_lower) and re.search(
+            r"\d+\s+(passed|failed|error)", s_lower
         ):
             last_summary = stripped
 

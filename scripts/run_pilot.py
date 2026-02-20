@@ -7,13 +7,19 @@ Sequential execution with delays to avoid rate limits.
 
 import gc
 import json
+import os
 import subprocess
 import time
 from datetime import datetime
 from pathlib import Path
 
 # Configuration
-DATA_DIR = Path("/Users/yuan/stylebench-data")
+DATA_DIR = Path(
+    os.environ.get(
+        "STYLEBENCH_DATA",
+        Path(__file__).resolve().parent.parent.parent / "stylebench-data",
+    )
+)
 RESULTS_DIR = DATA_DIR / "results" / "pilot_validated"
 BUGS_PER_STYLE = 10
 DELAY_BETWEEN_TRIALS = 2  # seconds

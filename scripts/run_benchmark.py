@@ -33,13 +33,19 @@ Usage:
 import argparse
 import gc
 import json
+import os
 import subprocess
 import time
 from datetime import datetime
 from pathlib import Path
 
 # Configuration
-DATA_DIR = Path("/Users/yuan/stylebench-data")
+DATA_DIR = Path(
+    os.environ.get(
+        "STYLEBENCH_DATA",
+        Path(__file__).resolve().parent.parent.parent / "stylebench-data",
+    )
+)
 BUGS_PER_STYLE = 20
 DELAY_BETWEEN_TRIALS = 2  # seconds between batches
 DELAY_BETWEEN_BATCHES = 5  # seconds every 5 batches
@@ -236,7 +242,7 @@ def run_batch(
     try:
         proc = subprocess.run(
             cmd,
-            cwd="/Users/yuan/stylebench",
+            cwd=str(Path(__file__).resolve().parent.parent),
             capture_output=True,
             text=True,
             timeout=3600,  # 60 min max per batch
