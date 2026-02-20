@@ -11,7 +11,7 @@ from ..evaluator import detect_changes, hash_source_files
 
 # Patterns that indicate the agent was rate-limited rather than genuinely failing.
 # Shared across all agent implementations.
-DEFAULT_TIMEOUT = 60
+DEFAULT_TIMEOUT = 120
 """Default agent timeout in seconds. All agents use this unless overridden."""
 
 RATE_LIMIT_PATTERNS = [
