@@ -302,9 +302,14 @@ class BenchmarkHarness:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             # Include bug IDs and mode to avoid collisions when running parallel trials
             if self.results:
-                bug_ids = "_".join(r.bug_id for r in self.results)
+                bug_ids_str = "_".join(r.bug_id for r in self.results)
                 mode = self.results[0].mode
-                filename = f"results_{timestamp}_{bug_ids}_{mode}.json"
+                # Truncate to avoid exceeding filesystem filename limits (255 bytes)
+                if len(bug_ids_str) > 150:
+                    first = self.results[0].bug_id
+                    last = self.results[-1].bug_id
+                    bug_ids_str = f"{first}_to_{last}_{len(self.results)}bugs"
+                filename = f"results_{timestamp}_{bug_ids_str}_{mode}.json"
             else:
                 filename = f"results_{timestamp}.json"
 
