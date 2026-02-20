@@ -99,7 +99,7 @@ def save_state(state: dict, state_file: Path, results_dir: Path):
 
 
 def get_bug_ids_for_batch(
-    repo: str, style: str, limit: int, catalog_dir: str = "bugs",
+    repo: str, style: str, limit: int, catalog_dir: str = "bugs_canonical",
 ) -> list[str]:
     """Load bug IDs from a catalog, limited to first `limit`."""
     catalog = DATA_DIR / catalog_dir / f"{repo}-{style}.json"
@@ -113,7 +113,7 @@ def get_bug_ids_for_batch(
 
 def get_pending_bugs(
     state: dict, repo: str, style: str, mode: str, limit: int,
-    catalog_dir: str = "bugs",
+    catalog_dir: str = "bugs_canonical",
 ) -> list[str]:
     """Return bug IDs for this batch that haven't completed yet."""
     all_bugs = get_bug_ids_for_batch(repo, style, limit, catalog_dir)
@@ -123,7 +123,7 @@ def get_pending_bugs(
 
 def is_batch_complete(
     state: dict, repo: str, style: str, mode: str, limit: int,
-    catalog_dir: str = "bugs",
+    catalog_dir: str = "bugs_canonical",
 ) -> bool:
     """Check if all bugs in a batch are completed."""
     return len(get_pending_bugs(state, repo, style, mode, limit, catalog_dir)) == 0
@@ -182,7 +182,7 @@ def run_batch(
     bug_ids: list[str],
     results_dir: Path,
     manifest_path: Path | None = None,
-    catalog_dir: str = "bugs",
+    catalog_dir: str = "bugs_canonical",
 ) -> tuple[list[dict], bool]:
     """Run a batch for specific bug IDs.
 
@@ -281,9 +281,9 @@ def main():
     parser.add_argument("--limit", type=int, default=BUGS_PER_STYLE, help="Bugs per batch")
     parser.add_argument(
         "--catalog-dir",
-        default="bugs",
+        default="bugs_canonical",
         help="Bug catalog subdirectory under data dir "
-        "(default: bugs, use bugs_canonical for canonical)",
+        "(default: bugs_canonical)",
     )
     parser.add_argument(
         "--manifest",

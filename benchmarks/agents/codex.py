@@ -7,7 +7,7 @@ import subprocess
 import time
 
 from ..evaluator import detect_changes, hash_source_files
-from .base import RATE_LIMIT_PATTERNS, Agent, BugContext, FixResult
+from .base import DEFAULT_TIMEOUT, RATE_LIMIT_PATTERNS, Agent, BugContext, FixResult
 
 
 class CodexAgent(Agent):
@@ -21,13 +21,13 @@ class CodexAgent(Agent):
 
     def __init__(
         self,
-        timeout: int = 180,
+        timeout: int = DEFAULT_TIMEOUT,
         model: str | None = None,
     ):
         """Initialize the Codex agent.
 
         Args:
-            timeout: Maximum time in seconds for fix attempt (default: 3 min).
+            timeout: Maximum time in seconds for fix attempt (default: 60s).
             model: Model to use (default: None, uses Codex CLI default).
         """
         self.timeout = timeout

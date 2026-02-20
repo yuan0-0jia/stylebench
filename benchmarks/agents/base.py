@@ -7,6 +7,9 @@ from pathlib import Path
 
 # Patterns that indicate the agent was rate-limited rather than genuinely failing.
 # Shared across all agent implementations.
+DEFAULT_TIMEOUT = 60
+"""Default agent timeout in seconds. All agents use this unless overridden."""
+
 RATE_LIMIT_PATTERNS = [
     "out of extra usage",
     "hit your limit",

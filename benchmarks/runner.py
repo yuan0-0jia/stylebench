@@ -18,6 +18,7 @@ import sys
 from pathlib import Path
 
 from .agents import ClaudeAgent, CodexAgent, GeminiAgent
+from .agents.base import DEFAULT_TIMEOUT
 from .harness import BenchmarkHarness
 
 # Agent registry: name -> (class, supported kwargs)
@@ -28,7 +29,7 @@ AGENT_REGISTRY = {
 }
 
 
-def get_agent(name: str, timeout: int = 180, model: str | None = None):
+def get_agent(name: str, timeout: int = DEFAULT_TIMEOUT, model: str | None = None):
     """Get an agent by name.
 
     Args:
@@ -119,8 +120,8 @@ def main():
     parser.add_argument(
         "--timeout",
         type=int,
-        default=300,
-        help="Agent timeout in seconds (default: 180)",
+        default=DEFAULT_TIMEOUT,
+        help=f"Agent timeout in seconds (default: {DEFAULT_TIMEOUT})",
     )
     parser.add_argument(
         "--test-timeout",

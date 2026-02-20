@@ -30,6 +30,7 @@ from benchmarks import (
     run_tests,
     unlock_tests,
 )
+from benchmarks.agents.base import DEFAULT_TIMEOUT
 
 
 class TestBugContext:
@@ -279,8 +280,8 @@ class TestLoadBugCatalog:
     def test_load_catalog(self, humanize_catalog):
         assert "bugs" in humanize_catalog
         assert "_hidden" in humanize_catalog
-        assert len(humanize_catalog["bugs"]) == 50
-        assert len(humanize_catalog["_hidden"]) == 50
+        assert len(humanize_catalog["bugs"]) == 49
+        assert len(humanize_catalog["_hidden"]) == 49
 
     def test_get_bug_by_id(self, humanize_catalog):
         bug, hidden = get_bug_by_id(humanize_catalog, "humanize-original-001")
@@ -470,7 +471,7 @@ class TestClaudeAgent:
 
     def test_initialization_defaults(self):
         agent = ClaudeAgent()
-        assert agent.timeout == 180
+        assert agent.timeout == DEFAULT_TIMEOUT
         assert agent.model is None
         assert agent.get_name() == "claude"
 
@@ -551,7 +552,7 @@ class TestBenchmarkHarness:
         )
 
         assert harness.catalog is not None
-        assert len(harness.catalog.get("bugs", [])) == 50
+        assert len(harness.catalog.get("bugs", [])) == 49
         assert harness.output_dir.exists()
 
     def test_extract_style(self, humanize_catalog, humanize_repo):

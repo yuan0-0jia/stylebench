@@ -8,7 +8,7 @@ import time
 from pathlib import Path
 
 from ..evaluator import detect_changes, hash_source_files
-from .base import RATE_LIMIT_PATTERNS, Agent, BugContext, FixResult
+from .base import DEFAULT_TIMEOUT, RATE_LIMIT_PATTERNS, Agent, BugContext, FixResult
 
 
 class ClaudeAgent(Agent):
@@ -22,14 +22,14 @@ class ClaudeAgent(Agent):
 
     def __init__(
         self,
-        timeout: int = 180,
+        timeout: int = DEFAULT_TIMEOUT,
         model: str | None = None,
         max_retries: int = 3,
     ):
         """Initialize the Claude agent.
 
         Args:
-            timeout: Maximum time in seconds for fix attempt (default: 3 min).
+            timeout: Maximum time in seconds for fix attempt (default: 60s).
             model: Model to use (default: None, uses Claude Code default).
             max_retries: Maximum retries on API errors (default: 3).
         """
