@@ -1,9 +1,13 @@
 """Base classes and data structures for StyleBench agents."""
 
+import subprocess
+import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
+
+from ..evaluator import detect_changes, hash_source_files
 
 # Patterns that indicate the agent was rate-limited rather than genuinely failing.
 # Shared across all agent implementations.
@@ -169,24 +173,137 @@ class TrialResult:
 class Agent(ABC):
     """Abstract base class for coding agents.
 
-    Subclasses must implement the `fix_bug` method to attempt fixing a bug
-    given the context (test output, repo path, etc.).
+    Subclasses implement `_build_command()` to define CLI invocation.
+    The base class handles everything else: prompting, hashing,
+    subprocess execution, rate-limit detection, and result construction.
     """
 
     name: str = "base"
     """Agent name for identification in results."""
 
-    @abstractmethod
-    def fix_bug(self, context: BugContext) -> FixResult:
-        """Attempt to fix a bug given the context.
+    cli_not_found_msg: str = "CLI not found. Is it installed?"
+    """Error message when the CLI binary is not found."""
 
-        Args:
-            context: Bug context with test output, repo path, and mode.
+    def __init__(
+        self,
+        timeout: int = DEFAULT_TIMEOUT,
+        model: str | None = None,
+    ):
+        self.timeout = timeout
+        self.model = model
 
-        Returns:
-            FixResult with success status, patch, timing, etc.
+    def build_prompt(self, context: BugContext) -> str:
+        """Build the standard prompt for fixing a bug.
+
+        All agents receive the same prompt to ensure fair comparison.
         """
+        prompt = f"""The tests in this repository are failing.
+Find and fix the bug.
+
+Test failure output:
+{context.test_output}
+
+Instructions:
+- Read the source code files to find the bug location
+- Edit the source code to fix the bug
+- Do NOT modify any test files
+- Make minimal changes to fix the issue
+- The bug is likely a simple logic error, off-by-one error, or similar"""
+
+        if context.mode == "without_tests":
+            prompt += """
+- You do not have access to the test files
+- Focus on understanding the code logic to find the bug
+- Do not attempt to run tests; make your best fix and stop"""
+        else:
+            prompt += """
+- You may read test files to understand expected behavior
+- But do NOT modify test files"""
+
+        return prompt
+
+    @abstractmethod
+    def _build_command(self, prompt: str, context: BugContext) -> list[str]:
+        """Build the CLI command to run. Subclasses must implement."""
         pass
+
+    def _get_env(self) -> dict | None:
+        """Return custom environment for subprocess, or None for default."""
+        return None
+
+    def _run_subprocess(
+        self, cmd: list[str], context: BugContext,
+    ) -> subprocess.CompletedProcess:
+        """Run the agent subprocess. Override for retry logic etc."""
+        return subprocess.run(
+            cmd,
+            cwd=context.repo_path,
+            capture_output=True,
+            text=True,
+            timeout=self.timeout,
+            env=self._get_env(),
+        )
+
+    def fix_bug(self, context: BugContext) -> FixResult:
+        """Attempt to fix a bug by running the agent CLI."""
+        start_time = time.time()
+        prompt = self.build_prompt(context)
+        cmd = self._build_command(prompt, context)
+
+        try:
+            before_hashes = hash_source_files(context.repo_path)
+
+            result = self._run_subprocess(cmd, context)
+
+            elapsed = time.time() - start_time
+            agent_output = result.stdout + result.stderr
+
+            after_hashes = hash_source_files(context.repo_path)
+
+            output_lower = agent_output.lower()
+            was_rate_limited = any(
+                p in output_lower for p in RATE_LIMIT_PATTERNS
+            )
+
+            fix_attempted = before_hashes != after_hashes
+            changed_files = detect_changes(before_hashes, after_hashes)
+
+            return FixResult(
+                success=fix_attempted,
+                files_changed=changed_files,
+                patch="(hash-based change detection)",
+                time_seconds=elapsed,
+                agent_output=agent_output,
+                error=(
+                    None if result.returncode == 0
+                    else f"Exit code: {result.returncode}"
+                ),
+                rate_limited=was_rate_limited,
+            )
+
+        except subprocess.TimeoutExpired:
+            elapsed = time.time() - start_time
+            return FixResult(
+                success=False,
+                time_seconds=elapsed,
+                error=f"Timeout after {self.timeout} seconds",
+            )
+
+        except FileNotFoundError:
+            elapsed = time.time() - start_time
+            return FixResult(
+                success=False,
+                time_seconds=elapsed,
+                error=self.cli_not_found_msg,
+            )
+
+        except Exception as e:
+            elapsed = time.time() - start_time
+            return FixResult(
+                success=False,
+                time_seconds=elapsed,
+                error=str(e),
+            )
 
     def get_name(self) -> str:
         """Return the agent's name."""

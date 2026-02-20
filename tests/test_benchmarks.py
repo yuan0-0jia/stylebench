@@ -154,7 +154,7 @@ class TestAgent:
         with pytest.raises(TypeError):
             Agent()
 
-    def test_subclass_must_implement_fix_bug(self):
+    def test_subclass_must_implement_build_command(self):
         class IncompleteAgent(Agent):
             pass
 
@@ -165,20 +165,11 @@ class TestAgent:
         class DummyAgent(Agent):
             name = "dummy"
 
-            def fix_bug(self, context: BugContext) -> FixResult:
-                return FixResult(success=False, error="Not implemented")
+            def _build_command(self, prompt, context):
+                return ["echo", "noop"]
 
         agent = DummyAgent()
         assert agent.get_name() == "dummy"
-
-        ctx = BugContext(
-            repo_path=Path("/tmp"),
-            test_output="FAILED",
-            failing_tests=[],
-            mode="with_tests",
-        )
-        result = agent.fix_bug(ctx)
-        assert result.success is False
 
 
 class TestEvaluateFix:
@@ -489,7 +480,7 @@ class TestClaudeAgent:
             mode="with_tests",
         )
 
-        prompt = agent._build_prompt(ctx)
+        prompt = agent.build_prompt(ctx)
         assert "FAILED test_foo" in prompt
         assert "You may read test files" in prompt
         assert "do not modify test files" in prompt.lower()
@@ -503,13 +494,19 @@ class TestClaudeAgent:
             mode="without_tests",
         )
 
-        prompt = agent._build_prompt(ctx)
+        prompt = agent.build_prompt(ctx)
         assert "FAILED test_foo" in prompt
         assert "do not have access to the test files" in prompt.lower()
 
     def test_build_command_basic(self):
         agent = ClaudeAgent()
-        cmd = agent._build_command("Fix the bug", Path("/tmp/repo"))
+        ctx = BugContext(
+            repo_path=Path("/tmp/repo"),
+            test_output="FAILED",
+            failing_tests=[],
+            mode="with_tests",
+        )
+        cmd = agent._build_command("Fix the bug", ctx)
 
         assert cmd[0] == "claude"
         assert "--print" in cmd
@@ -518,7 +515,13 @@ class TestClaudeAgent:
 
     def test_build_command_with_model(self):
         agent = ClaudeAgent(model="opus")
-        cmd = agent._build_command("Fix the bug", Path("/tmp/repo"))
+        ctx = BugContext(
+            repo_path=Path("/tmp/repo"),
+            test_output="FAILED",
+            failing_tests=[],
+            mode="with_tests",
+        )
+        cmd = agent._build_command("Fix the bug", ctx)
 
         assert "--model" in cmd
         assert "opus" in cmd
@@ -640,6 +643,9 @@ class TestBenchmarkHarness:
         class DummyAgent(Agent):
             name = "dummy"
 
+            def _build_command(self, prompt, context):
+                return ["echo", "noop"]
+
             def fix_bug(self, context: BugContext) -> FixResult:
                 return FixResult(success=True)
 
@@ -724,6 +730,9 @@ class TestRateLimitWorkflow:
 
         class RateLimitAgent(Agent):
             name = "mock"
+
+            def _build_command(self, prompt, context):
+                return ["echo", "noop"]
 
             def fix_bug(self, context: BugContext) -> FixResult:
                 nonlocal call_count
