@@ -48,6 +48,7 @@ DELAY_BETWEEN_BATCHES = 5  # seconds every 5 batches
 # Gemini CLI makes many API calls per invocation, needs throttling
 AGENT_TRIAL_DELAY = {
     "claude": 0,
+    "codex": 0,
     "gemini": 30,
 }
 

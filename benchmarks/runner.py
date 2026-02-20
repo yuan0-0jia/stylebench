@@ -17,12 +17,13 @@ import json
 import sys
 from pathlib import Path
 
-from .agents import ClaudeAgent, GeminiAgent
+from .agents import ClaudeAgent, CodexAgent, GeminiAgent
 from .harness import BenchmarkHarness
 
 # Agent registry: name -> (class, supported kwargs)
 AGENT_REGISTRY = {
     "claude": ClaudeAgent,
+    "codex": CodexAgent,
     "gemini": GeminiAgent,
 }
 

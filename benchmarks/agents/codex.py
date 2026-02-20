@@ -1,52 +1,40 @@
-"""Claude Code CLI agent for StyleBench.
+"""OpenAI Codex CLI agent for StyleBench.
 
-Wraps the Claude Code CLI to fix bugs in repositories.
+Wraps the Codex CLI to fix bugs in repositories.
 """
 
 import subprocess
 import time
-from pathlib import Path
 
 from ..evaluator import detect_changes, hash_source_files
 from .base import RATE_LIMIT_PATTERNS, Agent, BugContext, FixResult
 
 
-class ClaudeAgent(Agent):
-    """Agent that uses Claude Code CLI to fix bugs.
+class CodexAgent(Agent):
+    """Agent that uses Codex CLI to fix bugs.
 
-    Runs Claude Code in non-interactive mode with --print flag
+    Runs Codex CLI in non-interactive mode with exec subcommand
     to attempt fixing bugs based on test failure output.
     """
 
-    name = "claude"
+    name = "codex"
 
     def __init__(
         self,
         timeout: int = 180,
         model: str | None = None,
-        max_retries: int = 3,
     ):
-        """Initialize the Claude agent.
+        """Initialize the Codex agent.
 
         Args:
             timeout: Maximum time in seconds for fix attempt (default: 3 min).
-            model: Model to use (default: None, uses Claude Code default).
-            max_retries: Maximum retries on API errors (default: 3).
+            model: Model to use (default: None, uses Codex CLI default).
         """
         self.timeout = timeout
         self.model = model
-        self.max_retries = max_retries
 
     def _build_prompt(self, context: BugContext) -> str:
-        """Build the prompt for Claude Code.
-
-        Args:
-            context: Bug context with test output and mode.
-
-        Returns:
-            Prompt string for Claude Code.
-        """
-        # Base prompt with test failure info
+        """Build the prompt for Codex CLI."""
         prompt = f"""The tests in this repository are failing.
 Find and fix the bug.
 
@@ -60,7 +48,6 @@ Instructions:
 - Make minimal changes to fix the issue
 - The bug is likely a simple logic error, off-by-one error, or similar"""
 
-        # Add mode-specific instructions
         if context.mode == "without_tests":
             prompt += """
 - You do not have access to the test files
@@ -72,72 +59,41 @@ Instructions:
 
         return prompt
 
-    def _build_command(self, prompt: str, repo_path: Path) -> list[str]:
-        """Build the Claude Code CLI command.
-
-        Args:
-            prompt: The prompt to send to Claude.
-            repo_path: Path to the repository.
-
-        Returns:
-            Command list for subprocess.
-        """
+    def _build_command(self, prompt: str) -> list[str]:
+        """Build the Codex CLI command."""
         cmd = [
-            "claude",
-            "--print",  # Non-interactive mode
-            "--dangerously-skip-permissions",  # Skip permission prompts
+            "codex",
+            "exec",
+            "--dangerously-bypass-approvals-and-sandbox",
+            "--skip-git-repo-check",
+            prompt,
         ]
 
         if self.model:
             cmd.extend(["--model", self.model])
 
-        # Prompt must be last
-        cmd.extend(["--", prompt])
-
         return cmd
 
     def fix_bug(self, context: BugContext) -> FixResult:
-        """Attempt to fix a bug using Claude Code CLI.
-
-        Args:
-            context: Bug context with test output, repo path, and mode.
-
-        Returns:
-            FixResult with success status, patch, timing, etc.
-        """
+        """Attempt to fix a bug using Codex CLI."""
         start_time = time.time()
         prompt = self._build_prompt(context)
-        cmd = self._build_command(prompt, context.repo_path)
+        cmd = self._build_command(prompt)
 
         try:
             # Hash all source files before the agent runs
             before_hashes = hash_source_files(context.repo_path)
 
-            # Run Claude Code with retry on API errors
-            result = None
-            last_error = None
-            for attempt in range(self.max_retries):
-                result = subprocess.run(
-                    cmd,
-                    cwd=context.repo_path,
-                    capture_output=True,
-                    text=True,
-                    timeout=self.timeout,
-                )
-
-                output = result.stdout + result.stderr
-                # Check for transient API errors (500, 529, etc.)
-                if "500" in output or "529" in output or "Internal server error" in output:
-                    last_error = f"API error on attempt {attempt + 1}"
-                    if attempt < self.max_retries - 1:
-                        time.sleep(5 * (attempt + 1))  # Exponential backoff
-                        continue
-                break
+            result = subprocess.run(
+                cmd,
+                cwd=context.repo_path,
+                capture_output=True,
+                text=True,
+                timeout=self.timeout,
+            )
 
             elapsed = time.time() - start_time
             agent_output = result.stdout + result.stderr
-            if last_error:
-                agent_output = f"[Retried due to: {last_error}]\n" + agent_output
 
             # Hash all source files after the agent runs
             after_hashes = hash_source_files(context.repo_path)
@@ -175,7 +131,7 @@ Instructions:
             return FixResult(
                 success=False,
                 time_seconds=elapsed,
-                error="Claude Code CLI not found. Is it installed?",
+                error="Codex CLI not found. Is it installed?",
             )
 
         except Exception as e:
@@ -185,4 +141,3 @@ Instructions:
                 time_seconds=elapsed,
                 error=str(e),
             )
-
