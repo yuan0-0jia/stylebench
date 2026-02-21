@@ -24,6 +24,11 @@ python scripts/run_benchmark.py --catalog-dir bugs_canonical --reset
 
 # Skip confirmation prompts
 python scripts/run_benchmark.py --catalog-dir bugs_canonical --yes
+
+# Run in parallel (8 instances, one per repo/mode)
+python scripts/run_benchmark.py --catalog-dir bugs_canonical --repos humanize --mode with_tests --run-suffix _humanize_wt
+python scripts/run_benchmark.py --catalog-dir bugs_canonical --repos humanize --mode without_tests --run-suffix _humanize_wot
+# (each instance maintains its own state in benchmark_{agent}_{suffix}/)
 ```
 
 ## Running Individual Batches
@@ -120,7 +125,7 @@ python scripts/generate_bugs.py --all --output ../stylebench-data/bugs/
 
 ```
 stylebench-data/
-├── bugs/                  # Ad-hoc catalogs (991 bugs, for development)
+├── bugs/                  # Ad-hoc catalogs (872 bugs, for development)
 │   ├── humanize-original.json
 │   └── ...
 └── bugs_canonical/        # Canonical catalogs (400 bugs, for benchmark)
