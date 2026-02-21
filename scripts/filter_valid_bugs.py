@@ -29,9 +29,7 @@ def validate_bug(repo_path: Path, repo_name: str, hidden: dict, timeout: int = 6
         shutil.rmtree(work_dir, ignore_errors=True)
 
 
-def filter_catalog(
-    catalog_path: Path, repo_path: Path, repo_name: str, output_path: Path
-) -> dict:
+def filter_catalog(catalog_path: Path, repo_path: Path, repo_name: str, output_path: Path) -> dict:
     """Filter a catalog to only include valid bugs."""
     catalog = load_bug_catalog(catalog_path)
 
@@ -42,7 +40,7 @@ def filter_catalog(
     total = len(catalog["bugs"])
     for i, (bug, hidden) in enumerate(zip(catalog["bugs"], catalog["_hidden"])):
         bug_id = bug["bug_id"]
-        print(f"  [{i+1}/{total}] Checking {bug_id}...", end=" ", flush=True)
+        print(f"  [{i + 1}/{total}] Checking {bug_id}...", end=" ", flush=True)
 
         if validate_bug(repo_path, repo_name, hidden):
             valid_bugs.append(bug)

@@ -714,12 +714,18 @@ class TestRateLimitWorkflow:
 
         # Mock run_tests to simulate: before=failing, after=passing
         failing_result = TestRunResult(
-            exit_code=1, passed=9, failed=1, total=10,
+            exit_code=1,
+            passed=9,
+            failed=1,
+            total=10,
             output="FAILED tests/test_foo.py::test_bar",
             failing_tests=["tests/test_foo.py::test_bar"],
         )
         passing_result = TestRunResult(
-            exit_code=0, passed=10, failed=0, total=10,
+            exit_code=0,
+            passed=10,
+            failed=0,
+            total=10,
             output="10 passed",
             failing_tests=[],
         )
@@ -812,19 +818,23 @@ class TestRateLimitWorkflow:
 
         # Create a result file with hit_rate_limit in metadata
         result_file = tmp_path / "results_test.json"
-        result_file.write_text(json.dumps({
-            "metadata": {
-                "hit_rate_limit": True,
-                "total_trials": 1,
-            },
-            "results": [
+        result_file.write_text(
+            json.dumps(
                 {
-                    "bug_id": "test-original-001",
-                    "evaluation": "PASS",
-                    "fix_result": {"rate_limited": False},
-                },
-            ],
-        }))
+                    "metadata": {
+                        "hit_rate_limit": True,
+                        "total_trials": 1,
+                    },
+                    "results": [
+                        {
+                            "bug_id": "test-original-001",
+                            "evaluation": "PASS",
+                            "fix_result": {"rate_limited": False},
+                        },
+                    ],
+                }
+            )
+        )
 
         parsed, hit_rate_limit = run_benchmark.parse_result_file(result_file)
 
@@ -843,9 +853,13 @@ class TestRateLimitWorkflow:
         # Simulate state after a rate-limited run:
         # bug 001 completed, bug 002 was rate-limited (not recorded), bug 003 never attempted
         state = run_benchmark._empty_state()
-        run_benchmark.record_results(state, "with_tests", [
-            {"bug_id": "test-original-001", "evaluation": "PASS"},
-        ])
+        run_benchmark.record_results(
+            state,
+            "with_tests",
+            [
+                {"bug_id": "test-original-001", "evaluation": "PASS"},
+            ],
+        )
 
         assert "test-original-001" in state["completed_bugs"]["with_tests"]
         # 002 and 003 should not be in completed_bugs

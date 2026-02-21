@@ -57,10 +57,15 @@ def phase1_apply_revert(verbose=False):
             with tempfile.TemporaryDirectory() as tmp:
                 tmp_repo = Path(tmp) / repo
                 shutil.copytree(
-                    repo_path, tmp_repo, symlinks=True,
+                    repo_path,
+                    tmp_repo,
+                    symlinks=True,
                     ignore=shutil.ignore_patterns(
-                        ".venv", "__pycache__", ".pytest_cache",
-                        ".ruff_cache", ".mypy_cache",
+                        ".venv",
+                        "__pycache__",
+                        ".pytest_cache",
+                        ".ruff_cache",
+                        ".mypy_cache",
                     ),
                 )
 
@@ -170,10 +175,15 @@ def phase2_test_failures(sample_size=0, verbose=False):
             with tempfile.TemporaryDirectory() as tmp:
                 tmp_repo = Path(tmp) / repo
                 shutil.copytree(
-                    repo_path, tmp_repo, symlinks=True,
+                    repo_path,
+                    tmp_repo,
+                    symlinks=True,
                     ignore=shutil.ignore_patterns(
-                        ".venv", "__pycache__", ".pytest_cache",
-                        ".ruff_cache", ".mypy_cache",
+                        ".venv",
+                        "__pycache__",
+                        ".pytest_cache",
+                        ".ruff_cache",
+                        ".mypy_cache",
                     ),
                 )
 
@@ -256,11 +266,14 @@ def phase2_test_failures(sample_size=0, verbose=False):
 def main():
     parser = argparse.ArgumentParser(description="Validate canonical bug catalogs")
     parser.add_argument(
-        "--test-all", action="store_true",
+        "--test-all",
+        action="store_true",
         help="Test ALL bugs for test failures (slow)",
     )
     parser.add_argument(
-        "--test-sample", type=int, default=0,
+        "--test-sample",
+        type=int,
+        default=0,
         help="Test N bugs per catalog for failures",
     )
     parser.add_argument("-v", "--verbose", action="store_true")

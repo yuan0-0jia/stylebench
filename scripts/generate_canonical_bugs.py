@@ -153,8 +153,7 @@ def map_to_variants(
             skipped += 1
 
     log(
-        f"  Phase 2: {len(mapped)} candidates map to all variants "
-        f"({skipped} dropped)",
+        f"  Phase 2: {len(mapped)} candidates map to all variants ({skipped} dropped)",
         verbose,
     )
     return mapped
@@ -195,7 +194,9 @@ def _run_tests_in(
 
     try:
         result = run_with_cleanup(
-            test_command, cwd=repo_path, timeout=timeout,
+            test_command,
+            cwd=repo_path,
+            timeout=timeout,
         )
         output = result.stdout + result.stderr
         failing = []
@@ -241,10 +242,15 @@ def validate_candidates(
             src = DATA_DIR / style / repo
             dst = temp_path / style / repo
             shutil.copytree(
-                src, dst, symlinks=True,
+                src,
+                dst,
+                symlinks=True,
                 ignore=shutil.ignore_patterns(
-                    ".venv", "__pycache__", ".pytest_cache",
-                    ".ruff_cache", ".mypy_cache",
+                    ".venv",
+                    "__pycache__",
+                    ".pytest_cache",
+                    ".ruff_cache",
+                    ".mypy_cache",
                 ),
             )
             copies[style] = dst
@@ -322,12 +328,14 @@ def validate_candidates(
                 }
 
             if all_killed:
-                validated.append({
-                    "rel_path": rel_path,
-                    "site": site,
-                    "mappings": mappings,
-                    "test_results": test_results,
-                })
+                validated.append(
+                    {
+                        "rel_path": rel_path,
+                        "site": site,
+                        "mappings": mappings,
+                        "test_results": test_results,
+                    }
+                )
                 cat = MUTATION_CATEGORY.get(site.mutation_type, site.mutation_type.value)
                 category_counts[cat] = category_counts.get(cat, 0) + 1
                 log(
@@ -340,8 +348,7 @@ def validate_candidates(
                 log(f"    [{tested}] {len(validated)} validated so far...", True)
 
     log(
-        f"  Phase 3: {len(validated)} bugs validated across all variants "
-        f"(tested {tested})",
+        f"  Phase 3: {len(validated)} bugs validated across all variants (tested {tested})",
         verbose,
     )
     if verbose and category_counts:
@@ -438,12 +445,12 @@ def generate_canonical_bugs(
     repo: str, count: int = 20, max_per_type: int = 0, verbose: bool = False
 ):
     """Full pipeline for one repo."""
-    log(f"\n{'='*60}", verbose)
+    log(f"\n{'=' * 60}", verbose)
     log(f"Generating canonical bugs for: {repo}", verbose)
     log(f"Target count: {count}", verbose)
     if max_per_type > 0:
         log(f"Max per mutation type: {max_per_type}", verbose)
-    log(f"{'='*60}", verbose)
+    log(f"{'=' * 60}", verbose)
 
     # Phase 1: Discover
     candidates = discover_candidates(repo, verbose)
@@ -497,7 +504,8 @@ def main():
         help="Max bugs per mutation category (0 = unlimited, try 3-5 for diversity)",
     )
     parser.add_argument(
-        "--verbose", "-v",
+        "--verbose",
+        "-v",
         action="store_true",
         help="Print detailed progress",
     )
@@ -516,7 +524,9 @@ def main():
 
     for repo in repos:
         generate_canonical_bugs(
-            repo, count=args.count, max_per_type=args.max_per_type,
+            repo,
+            count=args.count,
+            max_per_type=args.max_per_type,
             verbose=args.verbose,
         )
 

@@ -126,9 +126,7 @@ class Validator:
         except Exception as e:
             return False, f"ERROR: {e}"
 
-    def validate_mutation(
-        self, file_path: Path, site: MutationSite
-    ) -> MutationResult:
+    def validate_mutation(self, file_path: Path, site: MutationSite) -> MutationResult:
         """
         Test a single mutation.
 

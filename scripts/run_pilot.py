@@ -45,14 +45,25 @@ def run_trial(repo: str, style: str, mode: str, limit: int) -> dict:
         return {"error": "repo_not_found"}
 
     cmd = [
-        "uv", "run", "python", "-m", "benchmarks.runner",
-        "--catalog", str(catalog),
-        "--repo", str(repo_path),
-        "--repo-name", repo,
-        "--agent", "claude",
-        "--mode", mode,
-        "--limit", str(limit),
-        "--output-dir", str(RESULTS_DIR),
+        "uv",
+        "run",
+        "python",
+        "-m",
+        "benchmarks.runner",
+        "--catalog",
+        str(catalog),
+        "--repo",
+        str(repo_path),
+        "--repo-name",
+        repo,
+        "--agent",
+        "claude",
+        "--mode",
+        mode,
+        "--limit",
+        str(limit),
+        "--output-dir",
+        str(RESULTS_DIR),
         "--quiet",
     ]
 

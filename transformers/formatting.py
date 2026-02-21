@@ -88,16 +88,12 @@ class RuffFormatter(Transformer):
     def transform(self, source_code: str) -> TransformResult:
         """Format source code using ruff."""
         # Write source to temp file
-        with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".py", delete=False
-        ) as src_file:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as src_file:
             src_file.write(source_code)
             src_path = Path(src_file.name)
 
         # Write config to temp file
-        with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".toml", delete=False
-        ) as cfg_file:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".toml", delete=False) as cfg_file:
             cfg_file.write(self.config.to_toml())
             cfg_path = Path(cfg_file.name)
 
@@ -105,8 +101,12 @@ class RuffFormatter(Transformer):
             # Run ruff format
             result = subprocess.run(
                 [
-                    "uv", "run", "ruff", "format",
-                    "--config", str(cfg_path),
+                    "uv",
+                    "run",
+                    "ruff",
+                    "format",
+                    "--config",
+                    str(cfg_path),
                     str(src_path),
                 ],
                 capture_output=True,
@@ -129,9 +129,7 @@ class RuffFormatter(Transformer):
             # Count changes (rough estimate based on diff)
             original_lines = source_code.splitlines()
             formatted_lines = formatted_code.splitlines()
-            changes = sum(
-                1 for a, b in zip(original_lines, formatted_lines) if a != b
-            )
+            changes = sum(1 for a, b in zip(original_lines, formatted_lines) if a != b)
             changes += abs(len(original_lines) - len(formatted_lines))
 
             details = [

@@ -73,6 +73,7 @@ def _parse(source: str) -> Node:
 # Function collection (positional matching)
 # ---------------------------------------------------------------------------
 
+
 def _collect_all_functions(root: Node) -> list[Node]:
     """Collect ALL function_definition nodes in DFS/source order.
 
@@ -164,8 +165,10 @@ def _build_context(source: str, start_byte: int, end_byte: int) -> str:
 # Operator occurrence counting
 # ---------------------------------------------------------------------------
 
-def _collect_operator_nodes(source: str, func_node: Node, op_text: str,
-                            mutation_type: MutationType) -> list[Node]:
+
+def _collect_operator_nodes(
+    source: str, func_node: Node, op_text: str, mutation_type: MutationType
+) -> list[Node]:
     """Collect all AST nodes matching operator text within a function body.
 
     Returns nodes in source order (by start_byte).
@@ -198,9 +201,7 @@ def _collect_operator_nodes(source: str, func_node: Node, op_text: str,
                     for child in parent.children:
                         if child.type == "identifier":
                             name = child.text.decode() if child.text else ""
-                            if name.isupper() or name in (
-                                "TYPE_CHECKING", "DEBUG", "TESTING"
-                            ):
+                            if name.isupper() or name in ("TYPE_CHECKING", "DEBUG", "TESTING"):
                                 skip = True
                                 break
                 if not skip:
@@ -245,6 +246,7 @@ def _is_operator_context(node: Node, mutation_type: MutationType) -> bool:
 # ---------------------------------------------------------------------------
 # Mapping functions by mutation type
 # ---------------------------------------------------------------------------
+
 
 def _map_operator_mutation(
     original_source: str,
@@ -479,13 +481,13 @@ def _map_if_else_swap(
     if else_block is None:
         return None
 
-    if_body = target_source[if_block.start_byte:if_block.end_byte]
-    else_body = target_source[else_block.start_byte:else_block.end_byte]
+    if_body = target_source[if_block.start_byte : if_block.end_byte]
+    else_body = target_source[else_block.start_byte : else_block.end_byte]
 
     if if_body.strip() == else_body.strip():
         return None
 
-    original_stmt = target_source[tgt_node.start_byte:tgt_node.end_byte]
+    original_stmt = target_source[tgt_node.start_byte : tgt_node.end_byte]
 
     if_rel_start = if_block.start_byte - tgt_node.start_byte
     if_rel_end = if_block.end_byte - tgt_node.start_byte
@@ -547,6 +549,7 @@ def _collect_simple_if_else(func_node: Node) -> list[Node]:
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
+
 
 def map_mutation(
     original_source: str,

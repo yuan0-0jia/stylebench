@@ -165,12 +165,16 @@ def main():
 
     if args.transformer == "camelcase":
         ctx = collect_project_context(work_dir, project_packages)
-        print(f"  Collected {len(ctx['definitions'])} definitions, "
-              f"{len(ctx['kwargs_functions'])} kwargs functions")
-        print(f"  Skipping: {len(ctx['function_names'])} funcs, "
-              f"{len(ctx['class_names'])} classes, {len(ctx['parameter_names'])} params, "
-              f"{len(ctx['instance_attribute_names'])} inst attrs, "
-              f"{len(ctx['class_attribute_names'])} class attrs")
+        print(
+            f"  Collected {len(ctx['definitions'])} definitions, "
+            f"{len(ctx['kwargs_functions'])} kwargs functions"
+        )
+        print(
+            f"  Skipping: {len(ctx['function_names'])} funcs, "
+            f"{len(ctx['class_names'])} classes, {len(ctx['parameter_names'])} params, "
+            f"{len(ctx['instance_attribute_names'])} inst attrs, "
+            f"{len(ctx['class_attribute_names'])} class attrs"
+        )
         transformer = CamelCaseTransformer(
             project_packages=project_packages,
             project_definitions=ctx["definitions"],
@@ -184,12 +188,16 @@ def main():
 
     elif args.transformer == "snakecase":
         ctx = collect_project_context(work_dir, project_packages)
-        print(f"  Collected {len(ctx['definitions'])} definitions, "
-              f"{len(ctx['kwargs_functions'])} kwargs functions")
-        print(f"  Skipping: {len(ctx['function_names'])} funcs, "
-              f"{len(ctx['class_names'])} classes, {len(ctx['parameter_names'])} params, "
-              f"{len(ctx['instance_attribute_names'])} inst attrs, "
-              f"{len(ctx['class_attribute_names'])} class attrs")
+        print(
+            f"  Collected {len(ctx['definitions'])} definitions, "
+            f"{len(ctx['kwargs_functions'])} kwargs functions"
+        )
+        print(
+            f"  Skipping: {len(ctx['function_names'])} funcs, "
+            f"{len(ctx['class_names'])} classes, {len(ctx['parameter_names'])} params, "
+            f"{len(ctx['instance_attribute_names'])} inst attrs, "
+            f"{len(ctx['class_attribute_names'])} class attrs"
+        )
         transformer = SnakeCaseTransformer(
             project_packages=project_packages,
             project_definitions=ctx["definitions"],

@@ -50,14 +50,33 @@ class RepoConfig:
         if external:
             # Running from outside the repo
             return [
-                "uv", "run", *deps, "python", "-m", "pytest", test_path,
-                "-x", "-q", "--tb=short", "--color=no", *ignore_flags
+                "uv",
+                "run",
+                *deps,
+                "python",
+                "-m",
+                "pytest",
+                test_path,
+                "-x",
+                "-q",
+                "--tb=short",
+                "--color=no",
+                *ignore_flags,
             ]
         else:
             # Running from inside the repo
             cmd = [
-                "uv", "run", *deps, "python", "-m", "pytest", test_path,
-                "-x", "-q", "--tb=short", "--color=no",
+                "uv",
+                "run",
+                *deps,
+                "python",
+                "-m",
+                "pytest",
+                test_path,
+                "-x",
+                "-q",
+                "--tb=short",
+                "--color=no",
             ]
             return cmd + ignore_flags
 
@@ -103,8 +122,5 @@ REPO_CONFIGS = {
 def get_config(repo_name: str) -> RepoConfig:
     """Get configuration for a repository."""
     if repo_name not in REPO_CONFIGS:
-        raise ValueError(
-            f"Unknown repo: {repo_name}. "
-            f"Available: {list(REPO_CONFIGS.keys())}"
-        )
+        raise ValueError(f"Unknown repo: {repo_name}. Available: {list(REPO_CONFIGS.keys())}")
     return REPO_CONFIGS[repo_name]

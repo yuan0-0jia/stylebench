@@ -43,6 +43,7 @@ def cleanup_children():
 
     # Kill pytest processes spawned by this script
     import subprocess
+
     try:
         # Find and kill any pytest processes in stylebench-data
         subprocess.run(
@@ -171,7 +172,8 @@ def main():
         help="Directory containing style variants (default: ./data)",
     )
     parser.add_argument(
-        "--verbose", "-v",
+        "--verbose",
+        "-v",
         action="store_true",
         help="Print detailed progress",
     )

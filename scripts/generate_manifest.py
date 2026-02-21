@@ -28,7 +28,10 @@ ALL_STYLES = ["original", "camelcase", "snakecase", "badnames", "formatting"]
 
 
 def load_catalog_bugs(
-    repo: str, style: str, limit: int | None = None, catalog_dir: str = "bugs",
+    repo: str,
+    style: str,
+    limit: int | None = None,
+    catalog_dir: str = "bugs",
 ) -> list[dict]:
     """Load bugs from a catalog file."""
     catalog_path = DATA_DIR / catalog_dir / f"{repo}-{style}.json"
@@ -49,12 +52,8 @@ def main():
     parser.add_argument(
         "--limit", type=int, default=None, help="Bugs per repo-style combo (default: all)"
     )
-    parser.add_argument(
-        "--repos", nargs="+", default=ALL_REPOS, help="Repos to include"
-    )
-    parser.add_argument(
-        "--styles", nargs="+", default=ALL_STYLES, help="Styles to include"
-    )
+    parser.add_argument("--repos", nargs="+", default=ALL_REPOS, help="Repos to include")
+    parser.add_argument("--styles", nargs="+", default=ALL_STYLES, help="Styles to include")
     parser.add_argument(
         "--catalog-dir",
         default="bugs",
@@ -62,7 +61,9 @@ def main():
         "(default: bugs, use bugs_canonical for canonical)",
     )
     parser.add_argument(
-        "--output", type=str, default=None,
+        "--output",
+        type=str,
+        default=None,
         help="Output path (default: auto-named in stylebench-data)",
     )
     args = parser.parse_args()
@@ -83,13 +84,15 @@ def main():
         for style in args.styles:
             bugs = load_catalog_bugs(repo, style, args.limit, args.catalog_dir)
             for bug in bugs:
-                manifest["trials"].append({
-                    "bug_id": bug["bug_id"],
-                    "repo": repo,
-                    "style": style,
-                    "test_output": bug["test_output"],
-                    "failing_tests": bug.get("failing_tests", []),
-                })
+                manifest["trials"].append(
+                    {
+                        "bug_id": bug["bug_id"],
+                        "repo": repo,
+                        "style": style,
+                        "test_output": bug["test_output"],
+                        "failing_tests": bug.get("failing_tests", []),
+                    }
+                )
                 total += 1
 
     manifest["total_bugs"] = total
@@ -115,7 +118,7 @@ def main():
 
     # Summary table
     print(f"\n  {'Repo':<20} {'Style':<12} {'Bugs':>5}")
-    print(f"  {'-'*20} {'-'*12} {'-'*5}")
+    print(f"  {'-' * 20} {'-' * 12} {'-' * 5}")
     for repo in args.repos:
         for style in args.styles:
             count = sum(1 for t in manifest["trials"] if t["repo"] == repo and t["style"] == style)

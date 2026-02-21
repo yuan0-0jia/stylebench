@@ -617,8 +617,6 @@ def apply_mutation(source_code: str, site: MutationSite) -> str:
     return _get_injector().apply_mutation(source_code, site)
 
 
-def apply_mutation_by_id(
-    source_code: str, site_id: int
-) -> tuple[str, MutationSite] | None:
+def apply_mutation_by_id(source_code: str, site_id: int) -> tuple[str, MutationSite] | None:
     """Apply a mutation by site ID."""
     return _get_injector().apply_mutation_by_id(source_code, site_id)

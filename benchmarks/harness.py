@@ -149,9 +149,7 @@ class BenchmarkHarness:
                         bug_id=bug_id,
                         agent=agent.get_name(),
                         mode=mode,
-                        fix_result=FixResult(
-                            success=False, error="Bug did not cause test failure"
-                        ),
+                        fix_result=FixResult(success=False, error="Bug did not cause test failure"),
                         evaluation="ERROR",
                     )
                     self.results.append(result)
@@ -164,9 +162,7 @@ class BenchmarkHarness:
                         bug_id=bug_id,
                         agent=agent.get_name(),
                         mode=mode,
-                        fix_result=FixResult(
-                            success=False, error="Bug did not cause test failure"
-                        ),
+                        fix_result=FixResult(success=False, error="Bug did not cause test failure"),
                         evaluation="ERROR",
                     )
                     self.results.append(result)
@@ -208,9 +204,7 @@ class BenchmarkHarness:
                 after_result = before_result  # No changes made
             else:
                 after_result = run_tests(work_dir, self.repo_name, timeout=test_timeout)
-                evaluation = evaluate_fix(
-                    before_result, after_result, before_result.failing_tests
-                )
+                evaluation = evaluate_fix(before_result, after_result, before_result.failing_tests)
 
             trial_result = TrialResult(
                 bug_id=bug_id,

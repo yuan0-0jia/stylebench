@@ -276,12 +276,12 @@ Instructions:
         return None
 
     def _run_subprocess(
-        self, cmd: list[str], context: BugContext,
+        self,
+        cmd: list[str],
+        context: BugContext,
     ) -> subprocess.CompletedProcess:
         """Run the agent subprocess. Override for retry logic etc."""
-        return _run_popen_with_timeout(
-            cmd, context.repo_path, self._get_env(), self.timeout
-        )
+        return _run_popen_with_timeout(cmd, context.repo_path, self._get_env(), self.timeout)
 
     def fix_bug(self, context: BugContext) -> FixResult:
         """Attempt to fix a bug by running the agent CLI."""
@@ -300,9 +300,7 @@ Instructions:
             after_hashes = hash_source_files(context.repo_path)
 
             output_lower = agent_output.lower()
-            was_rate_limited = any(
-                p in output_lower for p in RATE_LIMIT_PATTERNS
-            )
+            was_rate_limited = any(p in output_lower for p in RATE_LIMIT_PATTERNS)
 
             fix_attempted = before_hashes != after_hashes
             changed_files = detect_changes(before_hashes, after_hashes)
@@ -313,10 +311,7 @@ Instructions:
                 patch="(hash-based change detection)",
                 time_seconds=elapsed,
                 agent_output=agent_output,
-                error=(
-                    None if result.returncode == 0
-                    else f"Exit code: {result.returncode}"
-                ),
+                error=(None if result.returncode == 0 else f"Exit code: {result.returncode}"),
                 rate_limited=was_rate_limited,
             )
 

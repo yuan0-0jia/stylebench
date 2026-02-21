@@ -29,9 +29,7 @@ class TestInjector:
         """Test finding < and > operators."""
         code = "if x < y: pass"
         sites = injector.list_mutation_sites(code)
-        lt_sites = [
-            s for s in sites if s.mutation_type == MutationType.COMPARISON_LT_GT
-        ]
+        lt_sites = [s for s in sites if s.mutation_type == MutationType.COMPARISON_LT_GT]
         assert len(lt_sites) == 1
         assert lt_sites[0].original_text == "<"
         assert lt_sites[0].mutated_text == ">"
@@ -40,9 +38,7 @@ class TestInjector:
         """Test finding <= and >= operators."""
         code = "if x <= y: pass"
         sites = injector.list_mutation_sites(code)
-        le_sites = [
-            s for s in sites if s.mutation_type == MutationType.COMPARISON_LE_GE
-        ]
+        le_sites = [s for s in sites if s.mutation_type == MutationType.COMPARISON_LE_GE]
         assert len(le_sites) == 1
         assert le_sites[0].original_text == "<="
         assert le_sites[0].mutated_text == ">="
@@ -51,9 +47,7 @@ class TestInjector:
         """Test finding == and != operators."""
         code = "if x == y: pass"
         sites = injector.list_mutation_sites(code)
-        eq_sites = [
-            s for s in sites if s.mutation_type == MutationType.COMPARISON_EQ_NE
-        ]
+        eq_sites = [s for s in sites if s.mutation_type == MutationType.COMPARISON_EQ_NE]
         assert len(eq_sites) == 1
         assert eq_sites[0].original_text == "=="
         assert eq_sites[0].mutated_text == "!="
@@ -62,9 +56,7 @@ class TestInjector:
         """Test finding and/or operators."""
         code = "if x and y: pass"
         sites = injector.list_mutation_sites(code)
-        bool_sites = [
-            s for s in sites if s.mutation_type == MutationType.BOOLEAN_AND_OR
-        ]
+        bool_sites = [s for s in sites if s.mutation_type == MutationType.BOOLEAN_AND_OR]
         assert len(bool_sites) == 1
         assert bool_sites[0].original_text == "and"
         assert bool_sites[0].mutated_text == "or"
@@ -73,12 +65,8 @@ class TestInjector:
         """Test finding integer literals for boundary mutations."""
         code = "x = 5"
         sites = injector.list_mutation_sites(code)
-        plus_sites = [
-            s for s in sites if s.mutation_type == MutationType.BOUNDARY_PLUS_ONE
-        ]
-        minus_sites = [
-            s for s in sites if s.mutation_type == MutationType.BOUNDARY_MINUS_ONE
-        ]
+        plus_sites = [s for s in sites if s.mutation_type == MutationType.BOUNDARY_PLUS_ONE]
+        minus_sites = [s for s in sites if s.mutation_type == MutationType.BOUNDARY_MINUS_ONE]
         assert len(plus_sites) == 1
         assert plus_sites[0].mutated_text == "6"
         assert len(minus_sites) == 1
@@ -88,9 +76,7 @@ class TestInjector:
         """Test applying a comparison mutation."""
         code = "if x < y: pass"
         sites = injector.list_mutation_sites(code)
-        lt_site = next(
-            s for s in sites if s.mutation_type == MutationType.COMPARISON_LT_GT
-        )
+        lt_site = next(s for s in sites if s.mutation_type == MutationType.COMPARISON_LT_GT)
         mutated = injector.apply_mutation(code, lt_site)
         assert mutated == "if x > y: pass"
 
@@ -98,9 +84,7 @@ class TestInjector:
         """Test applying a boolean mutation."""
         code = "if a and b: pass"
         sites = injector.list_mutation_sites(code)
-        bool_site = next(
-            s for s in sites if s.mutation_type == MutationType.BOOLEAN_AND_OR
-        )
+        bool_site = next(s for s in sites if s.mutation_type == MutationType.BOOLEAN_AND_OR)
         mutated = injector.apply_mutation(code, bool_site)
         assert mutated == "if a or b: pass"
 
@@ -108,9 +92,7 @@ class TestInjector:
         """Test applying a boundary mutation."""
         code = "for i in range(10): pass"
         sites = injector.list_mutation_sites(code)
-        plus_site = next(
-            s for s in sites if s.mutation_type == MutationType.BOUNDARY_PLUS_ONE
-        )
+        plus_site = next(s for s in sites if s.mutation_type == MutationType.BOUNDARY_PLUS_ONE)
         mutated = injector.apply_mutation(code, plus_site)
         assert mutated == "for i in range(11): pass"
 
@@ -166,12 +148,12 @@ def foo(x):
 
     def test_if_else_swap(self, injector):
         """Test if/else swap mutation."""
-        code = '''def check(x):
+        code = """def check(x):
     if x > 0:
         return "positive"
     else:
         return "negative"
-'''
+"""
         sites = injector.list_mutation_sites(code)
         if_else_sites = [s for s in sites if s.mutation_type == MutationType.IF_ELSE_SWAP]
         assert len(if_else_sites) == 1
@@ -183,26 +165,26 @@ def foo(x):
 
     def test_if_else_swap_skips_elif(self, injector):
         """Test that if/elif/else chains don't create swap mutations."""
-        code = '''def check(x):
+        code = """def check(x):
     if x > 0:
         return "positive"
     elif x < 0:
         return "negative"
     else:
         return "zero"
-'''
+"""
         sites = injector.list_mutation_sites(code)
         if_else_sites = [s for s in sites if s.mutation_type == MutationType.IF_ELSE_SWAP]
         assert len(if_else_sites) == 0
 
     def test_if_else_swap_skips_identical_bodies(self, injector):
         """Test that identical if/else bodies don't create swap mutations."""
-        code = '''def check(x):
+        code = """def check(x):
     if x > 0:
         return "same"
     else:
         return "same"
-'''
+"""
         sites = injector.list_mutation_sites(code)
         if_else_sites = [s for s in sites if s.mutation_type == MutationType.IF_ELSE_SWAP]
         assert len(if_else_sites) == 0

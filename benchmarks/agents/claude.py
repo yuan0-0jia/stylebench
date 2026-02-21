@@ -38,14 +38,14 @@ class ClaudeAgent(Agent):
         return {k: v for k, v in os.environ.items() if k != "CLAUDECODE"}
 
     def _run_subprocess(
-        self, cmd: list[str], context: BugContext,
+        self,
+        cmd: list[str],
+        context: BugContext,
     ) -> subprocess.CompletedProcess:
         """Run with retry on transient API errors."""
         result = None
         for attempt in range(self.max_retries):
-            result = _run_popen_with_timeout(
-                cmd, context.repo_path, self._get_env(), self.timeout
-            )
+            result = _run_popen_with_timeout(cmd, context.repo_path, self._get_env(), self.timeout)
             output = result.stdout + result.stderr
             if "500" in output or "529" in output or "Internal server error" in output:
                 if attempt < self.max_retries - 1:

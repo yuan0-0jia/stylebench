@@ -68,6 +68,7 @@ ALL_REPOS = ["humanize", "validators", "python-markdown", "more-itertools"]
 ALL_STYLES = ["original", "camelcase", "snakecase", "badnames", "formatting"]
 ALL_MODES = ["with_tests", "without_tests"]
 
+
 def _get_run_id(agent: str, model: str | None, suffix: str = "") -> str:
     """Return a unique identifier for an agent+model combination."""
     if model:
@@ -111,7 +112,10 @@ def save_state(state: dict, state_file: Path, results_dir: Path):
 
 
 def get_bug_ids_for_batch(
-    repo: str, style: str, limit: int, catalog_dir: str = "bugs_canonical",
+    repo: str,
+    style: str,
+    limit: int,
+    catalog_dir: str = "bugs_canonical",
 ) -> list[str]:
     """Load bug IDs from a catalog, limited to first `limit`."""
     catalog = DATA_DIR / catalog_dir / f"{repo}-{style}.json"
@@ -124,7 +128,11 @@ def get_bug_ids_for_batch(
 
 
 def get_pending_bugs(
-    state: dict, repo: str, style: str, mode: str, limit: int,
+    state: dict,
+    repo: str,
+    style: str,
+    mode: str,
+    limit: int,
     catalog_dir: str = "bugs_canonical",
 ) -> list[str]:
     """Return bug IDs for this batch that haven't completed yet."""
@@ -134,7 +142,11 @@ def get_pending_bugs(
 
 
 def is_batch_complete(
-    state: dict, repo: str, style: str, mode: str, limit: int,
+    state: dict,
+    repo: str,
+    style: str,
+    mode: str,
+    limit: int,
     catalog_dir: str = "bugs_canonical",
 ) -> bool:
     """Check if all bugs in a batch are completed."""
@@ -287,7 +299,8 @@ def main():
     parser.add_argument("--agent", default="claude", help="Agent to use (claude, gemini)")
     parser.add_argument("--model", default=None, help="Model to use (e.g., haiku, sonnet, opus)")
     parser.add_argument(
-        "--run-suffix", default="",
+        "--run-suffix",
+        default="",
         help="Suffix for run ID, enables parallel instances (e.g., _wt, _wot)",
     )
     parser.add_argument("--reset", action="store_true", help="Reset progress and start fresh")
@@ -298,8 +311,7 @@ def main():
     parser.add_argument(
         "--catalog-dir",
         default="bugs_canonical",
-        help="Bug catalog subdirectory under data dir "
-        "(default: bugs_canonical)",
+        help="Bug catalog subdirectory under data dir (default: bugs_canonical)",
     )
     parser.add_argument(
         "--manifest",
@@ -308,7 +320,9 @@ def main():
         help="Path to trial manifest JSON (for controlled runs with pre-captured test output)",
     )
     parser.add_argument(
-        "--yes", "-y", action="store_true",
+        "--yes",
+        "-y",
+        action="store_true",
         help="Skip confirmation prompts (for non-interactive use)",
     )
     args = parser.parse_args()
@@ -344,8 +358,7 @@ def main():
 
     # Filter out fully completed batches
     pending = [
-        b for b in all_batches
-        if not is_batch_complete(state, *b, args.limit, args.catalog_dir)
+        b for b in all_batches if not is_batch_complete(state, *b, args.limit, args.catalog_dir)
     ]
 
     # Count total completed bugs across all modes
@@ -427,7 +440,13 @@ def main():
             )
 
         parsed, had_rate_limit = run_batch(
-            args.agent, args.model, repo, style, mode, remaining, results_dir,
+            args.agent,
+            args.model,
+            repo,
+            style,
+            mode,
+            remaining,
+            results_dir,
             manifest_path=Path(args.manifest) if args.manifest else None,
             catalog_dir=args.catalog_dir,
         )
@@ -489,8 +508,7 @@ def _print_status_summary(state: dict, all_batches: list, limit: int, catalog_di
 
     # Count completed batches
     completed_batches = sum(
-        1 for b in all_batches
-        if is_batch_complete(state, *b, limit, catalog_dir)
+        1 for b in all_batches if is_batch_complete(state, *b, limit, catalog_dir)
     )
 
     print()

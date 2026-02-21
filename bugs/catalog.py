@@ -123,20 +123,20 @@ def run_with_cleanup(cmd, cwd, timeout, capture_output=True, text=True):
 # Mutation types ordered by typical kill rate (highest first)
 # Mixed ordering to ensure diversity in bug catalogs
 MUTATION_PRIORITY = [
-    MutationType.COMPARISON_EQ_NE,      # == ↔ != (very high kill rate)
-    MutationType.VARIABLE_SWAP,          # var swap (high kill rate, interesting for badnames)
-    MutationType.BOOL_TRUE_FALSE,        # True ↔ False (high kill rate)
-    MutationType.RETURN_NONE,            # return x → None (high kill rate)
-    MutationType.IF_ELSE_SWAP,           # if/else swap (high kill rate)
-    MutationType.BOOLEAN_AND_OR,         # and ↔ or (high kill rate)
-    MutationType.COMPARISON_LT_GT,       # < ↔ > (medium-high)
-    MutationType.COMPARISON_LE_GE,       # <= ↔ >= (medium-high)
-    MutationType.MEMBERSHIP_IN,          # in ↔ not in (medium)
-    MutationType.IDENTITY_IS,            # is ↔ is not (medium)
-    MutationType.ARITHMETIC_ADD_SUB,     # + ↔ - (medium)
-    MutationType.ARITHMETIC_MUL_DIV,     # * ↔ / (medium-low)
-    MutationType.BOUNDARY_PLUS_ONE,      # n → n+1 (low - many equivalents)
-    MutationType.BOUNDARY_MINUS_ONE,     # n → n-1 (low - many equivalents)
+    MutationType.COMPARISON_EQ_NE,  # == ↔ != (very high kill rate)
+    MutationType.VARIABLE_SWAP,  # var swap (high kill rate, interesting for badnames)
+    MutationType.BOOL_TRUE_FALSE,  # True ↔ False (high kill rate)
+    MutationType.RETURN_NONE,  # return x → None (high kill rate)
+    MutationType.IF_ELSE_SWAP,  # if/else swap (high kill rate)
+    MutationType.BOOLEAN_AND_OR,  # and ↔ or (high kill rate)
+    MutationType.COMPARISON_LT_GT,  # < ↔ > (medium-high)
+    MutationType.COMPARISON_LE_GE,  # <= ↔ >= (medium-high)
+    MutationType.MEMBERSHIP_IN,  # in ↔ not in (medium)
+    MutationType.IDENTITY_IS,  # is ↔ is not (medium)
+    MutationType.ARITHMETIC_ADD_SUB,  # + ↔ - (medium)
+    MutationType.ARITHMETIC_MUL_DIV,  # * ↔ / (medium-low)
+    MutationType.BOUNDARY_PLUS_ONE,  # n → n+1 (low - many equivalents)
+    MutationType.BOUNDARY_MINUS_ONE,  # n → n-1 (low - many equivalents)
 ]
 
 
@@ -332,8 +332,7 @@ def _test_file_mutations_worker(args: tuple) -> list[dict]:
 
             # Filter to prefer failures related to the mutated file
             related_failures = [
-                t for t in new_failures
-                if _is_test_related_to_file(t, file_rel_path)
+                t for t in new_failures if _is_test_related_to_file(t, file_rel_path)
             ]
 
             # Fallback: if no directly related tests, accept all new failures
@@ -341,13 +340,15 @@ def _test_file_mutations_worker(args: tuple) -> list[dict]:
                 related_failures = new_failures
 
             if exit_code != 0 and related_failures:
-                results.append({
-                    "file_path": file_rel_path,
-                    "site_data": site_data,
-                    "test_output": output,
-                    "failing_tests": related_failures,
-                    "exit_code": exit_code,
-                })
+                results.append(
+                    {
+                        "file_path": file_rel_path,
+                        "site_data": site_data,
+                        "test_output": output,
+                        "failing_tests": related_failures,
+                        "exit_code": exit_code,
+                    }
+                )
 
         except subprocess.TimeoutExpired:
             pass
@@ -453,7 +454,10 @@ class CatalogGenerator:
         return False
 
     def generate_bug(
-        self, file_path: Path, site: MutationSite, bug_number: int,
+        self,
+        file_path: Path,
+        site: MutationSite,
+        bug_number: int,
         baseline_failing: set[str] | None = None,
     ) -> tuple[BugEntry, HiddenMetadata] | None:
         """
@@ -483,8 +487,7 @@ class CatalogGenerator:
             # Filter to prefer failures that are related to the mutated file
             # This filters out flaky/unrelated test failures when possible
             related_failures = [
-                t for t in new_failures
-                if self._is_test_related_to_file(t, file_path)
+                t for t in new_failures if self._is_test_related_to_file(t, file_path)
             ]
 
             # Fallback: if no directly related tests found, accept all new failures
@@ -527,10 +530,7 @@ class CatalogGenerator:
         # Unknown types get lowest priority
         max_priority = len(MUTATION_PRIORITY)
 
-        return sorted(
-            sites,
-            key=lambda x: priority_map.get(x[1].mutation_type, max_priority)
-        )
+        return sorted(sites, key=lambda x: priority_map.get(x[1].mutation_type, max_priority))
 
     def _serialize_site(self, site: MutationSite) -> dict:
         """Serialize a MutationSite for passing to worker process."""
@@ -627,6 +627,7 @@ class CatalogGenerator:
 
             # Group mutations by file to avoid conflicts
             from collections import defaultdict
+
             mutations_by_file: dict[str, list[MutationSite]] = defaultdict(list)
             for file_path, site in all_sites:
                 file_rel_path = str(file_path.relative_to(self.repo_path))
@@ -649,17 +650,19 @@ class CatalogGenerator:
                 worker_repo = worker_repos[worker_idx]
                 sites = mutations_by_file[file_rel_path]
 
-                work_items.append((
-                    str(worker_repo),
-                    file_rel_path,
-                    [self._serialize_site(site) for site in sites],
-                    worker_test_commands[worker_idx],  # Use correct command for this worker
-                    self.timeout,
-                    self.repo_name,
-                    self.style,
-                    baseline_failing,
-                    max_bugs,  # Limit per file to avoid over-testing
-                ))
+                work_items.append(
+                    (
+                        str(worker_repo),
+                        file_rel_path,
+                        [self._serialize_site(site) for site in sites],
+                        worker_test_commands[worker_idx],  # Use correct command for this worker
+                        self.timeout,
+                        self.repo_name,
+                        self.style,
+                        baseline_failing,
+                        max_bugs,  # Limit per file to avoid over-testing
+                    )
+                )
 
             if progress_callback:
                 msg = f"Processing {len(file_list)} files with {self.num_workers} workers"
@@ -692,7 +695,7 @@ class CatalogGenerator:
                                 progress_callback(
                                     min(len(killed_results), max_bugs),
                                     max_bugs,
-                                    f"Found {len(killed_results)} killed mutations"
+                                    f"Found {len(killed_results)} killed mutations",
                                 )
                     except Exception:
                         pass

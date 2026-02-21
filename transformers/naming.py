@@ -24,56 +24,214 @@ from .base import Transformer, TransformResult
 # Python built-in names that should never be transformed
 PYTHON_BUILTINS = {
     # Built-in functions
-    "abs", "aiter", "all", "any", "anext", "ascii", "bin", "bool", "breakpoint",
-    "bytearray", "bytes", "callable", "chr", "classmethod", "compile", "complex",
-    "delattr", "dict", "dir", "divmod", "enumerate", "eval", "exec", "filter",
-    "float", "format", "frozenset", "getattr", "globals", "hasattr", "hash",
-    "help", "hex", "id", "input", "int", "isinstance", "issubclass", "iter",
-    "len", "list", "locals", "map", "max", "memoryview", "min", "next", "object",
-    "oct", "open", "ord", "pow", "print", "property", "range", "repr", "reversed",
-    "round", "set", "setattr", "slice", "sorted", "staticmethod", "str", "sum",
-    "super", "tuple", "type", "vars", "zip",
+    "abs",
+    "aiter",
+    "all",
+    "any",
+    "anext",
+    "ascii",
+    "bin",
+    "bool",
+    "breakpoint",
+    "bytearray",
+    "bytes",
+    "callable",
+    "chr",
+    "classmethod",
+    "compile",
+    "complex",
+    "delattr",
+    "dict",
+    "dir",
+    "divmod",
+    "enumerate",
+    "eval",
+    "exec",
+    "filter",
+    "float",
+    "format",
+    "frozenset",
+    "getattr",
+    "globals",
+    "hasattr",
+    "hash",
+    "help",
+    "hex",
+    "id",
+    "input",
+    "int",
+    "isinstance",
+    "issubclass",
+    "iter",
+    "len",
+    "list",
+    "locals",
+    "map",
+    "max",
+    "memoryview",
+    "min",
+    "next",
+    "object",
+    "oct",
+    "open",
+    "ord",
+    "pow",
+    "print",
+    "property",
+    "range",
+    "repr",
+    "reversed",
+    "round",
+    "set",
+    "setattr",
+    "slice",
+    "sorted",
+    "staticmethod",
+    "str",
+    "sum",
+    "super",
+    "tuple",
+    "type",
+    "vars",
+    "zip",
     # Built-in constants
-    "True", "False", "None", "Ellipsis", "NotImplemented",
+    "True",
+    "False",
+    "None",
+    "Ellipsis",
+    "NotImplemented",
     # Built-in exceptions (all standard exceptions)
-    "BaseException", "BaseExceptionGroup", "Exception", "ExceptionGroup",
-    "ArithmeticError", "AssertionError", "AttributeError", "BlockingIOError",
-    "BrokenPipeError", "BufferError", "BytesWarning", "ChildProcessError",
-    "ConnectionAbortedError", "ConnectionError", "ConnectionRefusedError",
-    "ConnectionResetError", "DeprecationWarning", "EOFError", "EnvironmentError",
-    "FileExistsError", "FileNotFoundError", "FloatingPointError", "FutureWarning",
-    "GeneratorExit", "IOError", "ImportError", "ImportWarning", "IndentationError",
-    "IndexError", "InterruptedError", "IsADirectoryError", "KeyError",
-    "KeyboardInterrupt", "LookupError", "MemoryError", "ModuleNotFoundError",
-    "NameError", "NotADirectoryError", "NotImplementedError", "OSError",
-    "OverflowError", "PendingDeprecationWarning", "PermissionError",
-    "ProcessLookupError", "RecursionError", "ReferenceError", "ResourceWarning",
-    "RuntimeError", "RuntimeWarning", "StopAsyncIteration", "StopIteration",
-    "SyntaxError", "SyntaxWarning", "SystemError", "SystemExit", "TabError",
-    "TimeoutError", "TypeError", "UnboundLocalError", "UnicodeDecodeError",
-    "UnicodeEncodeError", "UnicodeError", "UnicodeTranslateError", "UnicodeWarning",
-    "UserWarning", "ValueError", "Warning", "ZeroDivisionError",
+    "BaseException",
+    "BaseExceptionGroup",
+    "Exception",
+    "ExceptionGroup",
+    "ArithmeticError",
+    "AssertionError",
+    "AttributeError",
+    "BlockingIOError",
+    "BrokenPipeError",
+    "BufferError",
+    "BytesWarning",
+    "ChildProcessError",
+    "ConnectionAbortedError",
+    "ConnectionError",
+    "ConnectionRefusedError",
+    "ConnectionResetError",
+    "DeprecationWarning",
+    "EOFError",
+    "EnvironmentError",
+    "FileExistsError",
+    "FileNotFoundError",
+    "FloatingPointError",
+    "FutureWarning",
+    "GeneratorExit",
+    "IOError",
+    "ImportError",
+    "ImportWarning",
+    "IndentationError",
+    "IndexError",
+    "InterruptedError",
+    "IsADirectoryError",
+    "KeyError",
+    "KeyboardInterrupt",
+    "LookupError",
+    "MemoryError",
+    "ModuleNotFoundError",
+    "NameError",
+    "NotADirectoryError",
+    "NotImplementedError",
+    "OSError",
+    "OverflowError",
+    "PendingDeprecationWarning",
+    "PermissionError",
+    "ProcessLookupError",
+    "RecursionError",
+    "ReferenceError",
+    "ResourceWarning",
+    "RuntimeError",
+    "RuntimeWarning",
+    "StopAsyncIteration",
+    "StopIteration",
+    "SyntaxError",
+    "SyntaxWarning",
+    "SystemError",
+    "SystemExit",
+    "TabError",
+    "TimeoutError",
+    "TypeError",
+    "UnboundLocalError",
+    "UnicodeDecodeError",
+    "UnicodeEncodeError",
+    "UnicodeError",
+    "UnicodeTranslateError",
+    "UnicodeWarning",
+    "UserWarning",
+    "ValueError",
+    "Warning",
+    "ZeroDivisionError",
     # Special names
-    "self", "cls", "_",
+    "self",
+    "cls",
+    "_",
     # pytest special method names (fixtures)
-    "setup_method", "teardown_method", "setup_class", "teardown_class",
-    "setup_module", "teardown_module", "setup_function", "teardown_function",
-    "setup", "teardown",
+    "setup_method",
+    "teardown_method",
+    "setup_class",
+    "teardown_class",
+    "setup_module",
+    "teardown_module",
+    "setup_function",
+    "teardown_function",
+    "setup",
+    "teardown",
     # HTMLParser methods (stdlib html.parser) - all public methods that might be overridden
-    "handle_starttag", "handle_endtag", "handle_startendtag", "handle_data",
-    "handle_comment", "handle_decl", "handle_pi", "handle_charref", "handle_entityref",
-    "parse_starttag", "parse_endtag", "parse_bogus_comment", "parse_comment",
-    "parse_declaration", "parse_html_declaration", "parse_marked_section", "parse_pi",
-    "check_for_whole_start_tag", "clear_cdata_mode", "set_cdata_mode",
-    "get_starttag_text", "getpos", "goahead", "reset", "unknown_decl", "updatepos",
+    "handle_starttag",
+    "handle_endtag",
+    "handle_startendtag",
+    "handle_data",
+    "handle_comment",
+    "handle_decl",
+    "handle_pi",
+    "handle_charref",
+    "handle_entityref",
+    "parse_starttag",
+    "parse_endtag",
+    "parse_bogus_comment",
+    "parse_comment",
+    "parse_declaration",
+    "parse_html_declaration",
+    "parse_marked_section",
+    "parse_pi",
+    "check_for_whole_start_tag",
+    "clear_cdata_mode",
+    "set_cdata_mode",
+    "get_starttag_text",
+    "getpos",
+    "goahead",
+    "reset",
+    "unknown_decl",
+    "updatepos",
     # xml.etree.ElementTree/xml.sax callback methods
-    "start_element", "end_element", "char_data",
+    "start_element",
+    "end_element",
+    "char_data",
     # unittest callback methods (camelCase - must not be transformed to snake_case)
-    "setUp", "tearDown", "setUpClass", "tearDownClass", "setUpModule", "tearDownModule",
+    "setUp",
+    "tearDown",
+    "setUpClass",
+    "tearDownClass",
+    "setUpModule",
+    "tearDownModule",
     # unittest callback methods (snake_case - must not be transformed to camelCase)
-    "set_up", "tear_down", "set_up_class", "tear_down_class",
+    "set_up",
+    "tear_down",
+    "set_up_class",
+    "tear_down_class",
     # asyncio callback methods
-    "connection_made", "connection_lost", "data_received", "eof_received",
+    "connection_made",
+    "connection_lost",
+    "data_received",
+    "eof_received",
 }
 
 
@@ -106,7 +264,7 @@ def snake_to_camel(name: str) -> str:
     result = parts[0].lower() + "".join(word.capitalize() for word in parts[1:] if word)
 
     # If the result would be a Python keyword, preserve the trailing underscore
-    if keyword.iskeyword(result) or result in ('True', 'False', 'None'):
+    if keyword.iskeyword(result) or result in ("True", "False", "None"):
         trailing_underscore = "_"
 
     return leading_underscores + result + trailing_underscore
@@ -228,7 +386,7 @@ class NameAnalyzer:
 
     def _get_text(self, node: Node) -> str:
         """Get text for a node using byte positions."""
-        return self.source_bytes[node.start_byte:node.end_byte].decode('utf-8')
+        return self.source_bytes[node.start_byte : node.end_byte].decode("utf-8")
 
     def analyze(self, root: Node) -> CodeContext:
         """Analyze the AST and return context about names."""
@@ -492,9 +650,13 @@ class NameAnalyzer:
                 param_name = self._get_text(child)
                 ctx.parameter_names.add(param_name)
                 ctx.local_definitions.add(param_name)  # Still track as local for reference
-            elif child.type in ("default_parameter", "typed_parameter",
-                               "typed_default_parameter", "list_splat_pattern",
-                               "dictionary_splat_pattern"):
+            elif child.type in (
+                "default_parameter",
+                "typed_parameter",
+                "typed_default_parameter",
+                "list_splat_pattern",
+                "dictionary_splat_pattern",
+            ):
                 for subchild in child.children:
                     if subchild.type == "identifier":
                         param_name = self._get_text(subchild)
@@ -552,7 +714,7 @@ class NameAnalyzer:
                     ctx.class_attribute_names.add(attr_name)
                     ctx.local_definitions.add(attr_name)
             # Handle annotated assignment (e.g., `output_formats: ClassVar[...] = {...}`)
-            elif hasattr(child, 'type') and 'assignment' in child.type:
+            elif hasattr(child, "type") and "assignment" in child.type:
                 left = child.child_by_field_name("left") or child.child_by_field_name("name")
                 if left and left.type == "identifier":
                     attr_name = self._get_text(left)
@@ -636,8 +798,10 @@ class NameAnalyzer:
                     # For chained access, check if root is a project package or alias
                     elif obj_node.type == "attribute":
                         root_name = get_root_name(obj_node)
-                        is_project = (root_name in ctx.project_packages
-                                      or root_name in ctx.project_module_aliases)
+                        is_project = (
+                            root_name in ctx.project_packages
+                            or root_name in ctx.project_module_aliases
+                        )
                         if is_project:
                             # If accessed as object, it's likely a submodule
                             if is_accessed_as_object(node):
@@ -648,9 +812,11 @@ class NameAnalyzer:
                             pos = (attr_node.start_byte, attr_node.end_byte)
                             ctx.attribute_positions.add(pos)
                             # If external module or object, mark as never transform
-                            is_external = (root_name in ctx.imported_names
-                                           or root_name in ctx.module_names
-                                           or root_name in ctx.external_object_vars)
+                            is_external = (
+                                root_name in ctx.imported_names
+                                or root_name in ctx.module_names
+                                or root_name in ctx.external_object_vars
+                            )
                             if is_external:
                                 ctx.external_module_attribute_positions.add(pos)
                     # Direct external module attribute access (e.g., importlib.util)
@@ -826,9 +992,10 @@ class NameAnalyzer:
             # Handle different string types (regular, raw, f-string parts)
             # Find all {name} patterns (simple placeholders, not {name:format} for now)
             import re
+
             # Match {identifier} but not {{escaped}} or {expr:format}
             # We look for {word} where word is a valid Python identifier
-            pattern = r'\{([a-zA-Z_][a-zA-Z0-9_]*)\}'
+            pattern = r"\{([a-zA-Z_][a-zA-Z0-9_]*)\}"
 
             for match in re.finditer(pattern, text):
                 placeholder_name = match.group(1)
@@ -843,7 +1010,7 @@ class NameAnalyzer:
                     # Verify the positions are correct by checking the source
                     try:
                         src_slice = self.source_bytes[placeholder_start:placeholder_end]
-                        actual = src_slice.decode('utf-8')
+                        actual = src_slice.decode("utf-8")
                         if actual == placeholder_name:
                             ctx.format_string_placeholders.append(
                                 (placeholder_start, placeholder_end, placeholder_name)
@@ -1127,7 +1294,7 @@ class CamelCaseTransformer(Transformer):
 
         def visit(n: Node):
             if n.type == "identifier":
-                name = source_bytes[n.start_byte:n.end_byte].decode('utf-8')
+                name = source_bytes[n.start_byte : n.end_byte].decode("utf-8")
                 identifiers.append((name, n.start_byte, n.end_byte))
 
             for child in n.children:
@@ -1245,7 +1412,7 @@ class CamelCaseTransformer(Transformer):
 
             try:
                 source_code = file_path.read_text()
-                source_bytes = source_code.encode('utf-8')
+                source_bytes = source_code.encode("utf-8")
                 root = self.parse(source_code)
 
                 analyzer = NameAnalyzer(source_bytes, self.project_packages)
@@ -1294,7 +1461,7 @@ class CamelCaseTransformer(Transformer):
         for start, end, original in sorted_strings:
             # Get the current text at this position
             try:
-                current = result[start:end].decode('utf-8')
+                current = result[start:end].decode("utf-8")
             except UnicodeDecodeError:
                 continue  # Position has shifted, skip
 
@@ -1309,11 +1476,11 @@ class CamelCaseTransformer(Transformer):
             new_inner = inner
             for old_name, new_name in mappings.items():
                 # Replace whole words only
-                new_inner = re.sub(r'\b' + re.escape(old_name) + r'\b', new_name, new_inner)
+                new_inner = re.sub(r"\b" + re.escape(old_name) + r"\b", new_name, new_inner)
 
             if new_inner != inner:
                 new_string = quote + new_inner + quote
-                result = result[:start] + new_string.encode('utf-8') + result[end:]
+                result = result[:start] + new_string.encode("utf-8") + result[end:]
 
         return result
 
@@ -1329,7 +1496,7 @@ class CamelCaseTransformer(Transformer):
         for start, end, original in sorted_strings:
             # Get the current text at this position
             try:
-                current = result[start:end].decode('utf-8')
+                current = result[start:end].decode("utf-8")
             except UnicodeDecodeError:
                 continue  # Position has shifted, skip
 
@@ -1343,13 +1510,13 @@ class CamelCaseTransformer(Transformer):
             # Check if this name should be transformed
             if inner in mappings:
                 new_string = quote + mappings[inner] + quote
-                result = result[:start] + new_string.encode('utf-8') + result[end:]
+                result = result[:start] + new_string.encode("utf-8") + result[end:]
 
         return result
 
     def transform(self, source_code: str) -> TransformResult:
         """Transform snake_case identifiers to camelCase."""
-        source_bytes = source_code.encode('utf-8')
+        source_bytes = source_code.encode("utf-8")
         root = self.parse(source_code)
 
         # Analyze the code to understand context
@@ -1392,7 +1559,7 @@ class CamelCaseTransformer(Transformer):
             inner = original[1:-1]
             new_inner = inner
             for old_name, new_name in self.name_mappings.items():
-                new_inner = re.sub(r'\b' + re.escape(old_name) + r'\b', new_name, new_inner)
+                new_inner = re.sub(r"\b" + re.escape(old_name) + r"\b", new_name, new_inner)
             if new_inner != inner:
                 replacements.append((start, end, original, quote + new_inner + quote))
 
@@ -1423,21 +1590,24 @@ class CamelCaseTransformer(Transformer):
         changes_applied = 0
         for start, end, original, transformed in replacements:
             try:
-                actual = result_bytes[start:end].decode('utf-8')
+                actual = result_bytes[start:end].decode("utf-8")
             except UnicodeDecodeError:
                 continue
             if actual != original:
                 continue
-            result_bytes = result_bytes[:start] + transformed.encode('utf-8') + result_bytes[end:]
+            result_bytes = result_bytes[:start] + transformed.encode("utf-8") + result_bytes[end:]
             changes_applied += 1
 
-        result = result_bytes.decode('utf-8')
+        result = result_bytes.decode("utf-8")
 
         # Generate details
         details = [f"Renamed {len(self.name_mappings)} identifier types:"]
         for original, transformed in sorted(self.name_mappings.items()):
-            count = sum(1 for n, s, e in identifiers
-                       if n == original and self._is_transformable(n, (s, e), ctx))
+            count = sum(
+                1
+                for n, s, e in identifiers
+                if n == original and self._is_transformable(n, (s, e), ctx)
+            )
             details.append(f"  {original} → {transformed} ({count} occurrences)")
 
         return TransformResult(
@@ -1494,7 +1664,7 @@ class SnakeCaseTransformer(Transformer):
 
         def visit(n: Node):
             if n.type == "identifier":
-                name = source_bytes[n.start_byte:n.end_byte].decode('utf-8')
+                name = source_bytes[n.start_byte : n.end_byte].decode("utf-8")
                 identifiers.append((name, n.start_byte, n.end_byte))
 
             for child in n.children:
@@ -1616,7 +1786,7 @@ class SnakeCaseTransformer(Transformer):
 
             try:
                 source_code = file_path.read_text()
-                source_bytes = source_code.encode('utf-8')
+                source_bytes = source_code.encode("utf-8")
                 root = self.parse(source_code)
 
                 analyzer = NameAnalyzer(source_bytes, self.project_packages)
@@ -1658,7 +1828,7 @@ class SnakeCaseTransformer(Transformer):
 
     def transform(self, source_code: str) -> TransformResult:
         """Transform camelCase identifiers to snake_case."""
-        source_bytes = source_code.encode('utf-8')
+        source_bytes = source_code.encode("utf-8")
         root = self.parse(source_code)
 
         analyzer = NameAnalyzer(source_bytes, self.project_packages)
@@ -1690,7 +1860,7 @@ class SnakeCaseTransformer(Transformer):
             inner = original[1:-1]
             new_inner = inner
             for old_name, new_name in self.name_mappings.items():
-                new_inner = re.sub(r'\b' + re.escape(old_name) + r'\b', new_name, new_inner)
+                new_inner = re.sub(r"\b" + re.escape(old_name) + r"\b", new_name, new_inner)
             if new_inner != inner:
                 new_str = quote + new_inner + quote
                 replacements.append((start, end, original, new_str))
@@ -1721,20 +1891,23 @@ class SnakeCaseTransformer(Transformer):
         changes_applied = 0
         for start, end, original, transformed in replacements:
             try:
-                actual = result_bytes[start:end].decode('utf-8')
+                actual = result_bytes[start:end].decode("utf-8")
             except UnicodeDecodeError:
                 continue
             if actual != original:
                 continue
-            result_bytes = result_bytes[:start] + transformed.encode('utf-8') + result_bytes[end:]
+            result_bytes = result_bytes[:start] + transformed.encode("utf-8") + result_bytes[end:]
             changes_applied += 1
 
-        result = result_bytes.decode('utf-8')
+        result = result_bytes.decode("utf-8")
 
         details = [f"Renamed {len(self.name_mappings)} identifier types:"]
         for original, transformed in sorted(self.name_mappings.items()):
-            count = sum(1 for n, s, e in identifiers
-                       if n == original and self._is_transformable(n, (s, e), ctx))
+            count = sum(
+                1
+                for n, s, e in identifiers
+                if n == original and self._is_transformable(n, (s, e), ctx)
+            )
             details.append(f"  {original} → {transformed} ({count} occurrences)")
 
         return TransformResult(
@@ -1815,17 +1988,20 @@ class BadNamingTransformer(Transformer):
                         # Handle different parameter types
                         param_name = None
                         if child.type == "identifier":
-                            param_name = source_bytes[child.start_byte:child.end_byte]
-                            param_name = param_name.decode('utf-8')
+                            param_name = source_bytes[child.start_byte : child.end_byte]
+                            param_name = param_name.decode("utf-8")
                         elif child.type in (
-                            "typed_parameter", "typed_default_parameter",
-                            "default_parameter"
+                            "typed_parameter",
+                            "typed_default_parameter",
+                            "default_parameter",
                         ):
                             # Get the identifier child (parameter name)
                             for subchild in child.children:
                                 if subchild.type == "identifier":
-                                    param_name = source_bytes[subchild.start_byte:subchild.end_byte]
-                                    param_name = param_name.decode('utf-8')
+                                    param_name = source_bytes[
+                                        subchild.start_byte : subchild.end_byte
+                                    ]
+                                    param_name = param_name.decode("utf-8")
                                     break
                         if param_name:
                             param_names.add(param_name)
@@ -1842,8 +2018,8 @@ class BadNamingTransformer(Transformer):
                 if n.type in ("nonlocal_statement", "global_statement"):
                     for child in n.children:
                         if child.type == "identifier":
-                            name = source_bytes[child.start_byte:child.end_byte]
-                            nonlocal_names.add(name.decode('utf-8'))
+                            name = source_bytes[child.start_byte : child.end_byte]
+                            nonlocal_names.add(name.decode("utf-8"))
                 for child in n.children:
                     # Don't recurse into nested functions
                     if child.type != "function_definition":
@@ -1865,23 +2041,27 @@ class BadNamingTransformer(Transformer):
                 if n.type == "assignment":
                     left = n.child_by_field_name("left")
                     if left and left.type == "identifier":
-                        name = source_bytes[left.start_byte:left.end_byte]
-                        name = name.decode('utf-8')
+                        name = source_bytes[left.start_byte : left.end_byte]
+                        name = name.decode("utf-8")
                         # Skip if it's a parameter, nonlocal, or global variable
-                        if (name not in param_names
+                        if (
+                            name not in param_names
                             and name not in nonlocal_names
-                            and self._is_transformable(name, ctx)):
+                            and self._is_transformable(name, ctx)
+                        ):
                             defined_names.add(name)
 
                 elif n.type == "for_statement":
                     left = n.child_by_field_name("left")
                     if left and left.type == "identifier":
-                        name = source_bytes[left.start_byte:left.end_byte]
-                        name = name.decode('utf-8')
+                        name = source_bytes[left.start_byte : left.end_byte]
+                        name = name.decode("utf-8")
                         # Skip if it shadows a parameter or is nonlocal/global
-                        if (name not in param_names
+                        if (
+                            name not in param_names
                             and name not in nonlocal_names
-                            and self._is_transformable(name, ctx)):
+                            and self._is_transformable(name, ctx)
+                        ):
                             defined_names.add(name)
 
                 for child in n.children:
@@ -1907,16 +2087,17 @@ class BadNamingTransformer(Transformer):
                 if params:
                     for child in params.children:
                         if child.type == "identifier":
-                            name = source_bytes[child.start_byte:child.end_byte]
-                            local_names.add(name.decode('utf-8'))
+                            name = source_bytes[child.start_byte : child.end_byte]
+                            local_names.add(name.decode("utf-8"))
                         elif child.type in (
-                            "typed_parameter", "typed_default_parameter",
-                            "default_parameter"
+                            "typed_parameter",
+                            "typed_default_parameter",
+                            "default_parameter",
                         ):
                             for subchild in child.children:
                                 if subchild.type == "identifier":
-                                    name = source_bytes[subchild.start_byte:subchild.end_byte]
-                                    local_names.add(name.decode('utf-8'))
+                                    name = source_bytes[subchild.start_byte : subchild.end_byte]
+                                    local_names.add(name.decode("utf-8"))
                                     break
 
                 nested_body = func_node.child_by_field_name("body")
@@ -1926,8 +2107,8 @@ class BadNamingTransformer(Transformer):
                     if n.type in ("nonlocal_statement", "global_statement"):
                         for child in n.children:
                             if child.type == "identifier":
-                                name = source_bytes[child.start_byte:child.end_byte]
-                                nested_nonlocal.add(name.decode('utf-8'))
+                                name = source_bytes[child.start_byte : child.end_byte]
+                                nested_nonlocal.add(name.decode("utf-8"))
                     for child in n.children:
                         if child.type != "function_definition":
                             collect_nested_nonlocal(child)
@@ -1943,15 +2124,15 @@ class BadNamingTransformer(Transformer):
                     if n.type == "assignment":
                         left = n.child_by_field_name("left")
                         if left and left.type == "identifier":
-                            name = source_bytes[left.start_byte:left.end_byte]
-                            name = name.decode('utf-8')
+                            name = source_bytes[left.start_byte : left.end_byte]
+                            name = name.decode("utf-8")
                             if name not in nested_nonlocal:
                                 local_names.add(name)
                     elif n.type == "for_statement":
                         left = n.child_by_field_name("left")
                         if left and left.type == "identifier":
-                            name = source_bytes[left.start_byte:left.end_byte]
-                            name = name.decode('utf-8')
+                            name = source_bytes[left.start_byte : left.end_byte]
+                            name = name.decode("utf-8")
                             if name not in nested_nonlocal:
                                 local_names.add(name)
                     for child in n.children:
@@ -1989,7 +2170,7 @@ class BadNamingTransformer(Transformer):
                         if name_node and name_node.id == n.id:
                             return
 
-                    name = source_bytes[n.start_byte:n.end_byte].decode('utf-8')
+                    name = source_bytes[n.start_byte : n.end_byte].decode("utf-8")
                     # Include if it's a defined name AND not shadowed by nested func
                     if name in defined_names and name not in shadowed_names:
                         identifiers.append((name, n.start_byte, n.end_byte))
@@ -2010,13 +2191,13 @@ class BadNamingTransformer(Transformer):
                         if n.type == "assignment":
                             left = n.child_by_field_name("left")
                             if left and left.type == "identifier":
-                                name = source_bytes[left.start_byte:left.end_byte]
-                                nested_names.add(name.decode('utf-8'))
+                                name = source_bytes[left.start_byte : left.end_byte]
+                                nested_names.add(name.decode("utf-8"))
                         elif n.type == "for_statement":
                             left = n.child_by_field_name("left")
                             if left and left.type == "identifier":
-                                name = source_bytes[left.start_byte:left.end_byte]
-                                nested_names.add(name.decode('utf-8'))
+                                name = source_bytes[left.start_byte : left.end_byte]
+                                nested_names.add(name.decode("utf-8"))
                     for child in n.children:
                         collect_nested_names(child, in_nested)
 
@@ -2033,11 +2214,11 @@ class BadNamingTransformer(Transformer):
                     used.add(new_name)
 
                 scope = {
-                    'start': func_start,
-                    'end': func_end,
-                    'defined_names': defined_names,
-                    'identifiers': identifiers,
-                    'mappings': mappings,
+                    "start": func_start,
+                    "end": func_end,
+                    "defined_names": defined_names,
+                    "identifiers": identifiers,
+                    "mappings": mappings,
                 }
                 scopes.append(scope)
                 return scope
@@ -2053,7 +2234,7 @@ class BadNamingTransformer(Transformer):
                 scope = process_function(n, parent_new_names)
                 if scope:
                     # Pass this function's new names to nested functions
-                    new_names = parent_new_names | set(scope['mappings'].values())
+                    new_names = parent_new_names | set(scope["mappings"].values())
                     for child in n.children:
                         find_functions(child, new_names)
                 return
@@ -2066,7 +2247,7 @@ class BadNamingTransformer(Transformer):
 
     def transform(self, source_code: str) -> TransformResult:
         """Transform local variable names to single-letter names."""
-        source_bytes = source_code.encode('utf-8')
+        source_bytes = source_code.encode("utf-8")
         root = self.parse(source_code)
 
         analyzer = NameAnalyzer(source_bytes)
@@ -2086,24 +2267,24 @@ class BadNamingTransformer(Transformer):
         replacements = []
         self.name_mappings = {}
         for scope in scopes:
-            self.name_mappings.update(scope['mappings'])
-            for name, start, end in scope['identifiers']:
-                if name in scope['mappings']:
-                    replacements.append((start, end, name, scope['mappings'][name]))
+            self.name_mappings.update(scope["mappings"])
+            for name, start, end in scope["identifiers"]:
+                if name in scope["mappings"]:
+                    replacements.append((start, end, name, scope["mappings"][name]))
 
         replacements.sort(key=lambda x: x[0], reverse=True)
 
         result_bytes = source_bytes
         changes_applied = 0
         for start, end, original, transformed in replacements:
-            actual = result_bytes[start:end].decode('utf-8')
+            actual = result_bytes[start:end].decode("utf-8")
             if actual != original:
                 continue
-            new_bytes = transformed.encode('utf-8')
+            new_bytes = transformed.encode("utf-8")
             result_bytes = result_bytes[:start] + new_bytes + result_bytes[end:]
             changes_applied += 1
 
-        result = result_bytes.decode('utf-8')
+        result = result_bytes.decode("utf-8")
 
         # Count occurrences from replacements
         name_counts: dict[str, int] = {}

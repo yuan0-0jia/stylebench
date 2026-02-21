@@ -1,6 +1,5 @@
 """Tests for code style transformers."""
 
-
 from transformers import (
     BadNamingTransformer,
     CamelCaseTransformer,
@@ -52,11 +51,11 @@ class TestCamelCaseTransformer:
     """Test CamelCaseTransformer."""
 
     def test_transform_simple_function(self):
-        code = '''
+        code = """
 def get_user_name(user_id):
     user_name = fetch_user(user_id)
     return user_name
-'''
+"""
         transformer = CamelCaseTransformer()
         result = transformer.transform(code)
 
@@ -69,12 +68,12 @@ def get_user_name(user_id):
         assert result.changes_made > 0
 
     def test_transform_preserves_builtins(self):
-        code = '''
+        code = """
 def process_items(items):
     result = len(items)
     print(result)
     return True
-'''
+"""
         transformer = CamelCaseTransformer()
         result = transformer.transform(code)
 
@@ -84,14 +83,14 @@ def process_items(items):
         assert "True" in result.transformed_code
 
     def test_transform_preserves_dunder_methods(self):
-        code = '''
+        code = """
 class MyClass:
     def __init__(self):
         self.my_value = 0
 
     def __str__(self):
         return str(self.my_value)
-'''
+"""
         transformer = CamelCaseTransformer()
         result = transformer.transform(code)
 
@@ -103,10 +102,10 @@ class MyClass:
         assert "self.my_value" in result.transformed_code
 
     def test_no_changes_needed(self):
-        code = '''
+        code = """
 def processItems(items):
     return items
-'''
+"""
         transformer = CamelCaseTransformer()
         result = transformer.transform(code)
 
@@ -114,13 +113,13 @@ def processItems(items):
         assert result.transformed_code == code
 
     def test_transform_class_attributes(self):
-        code = '''
+        code = """
 class UserProfile:
     def __init__(self, first_name, last_name):
         self.first_name = first_name
         self.last_name = last_name
         self.full_name = f"{first_name} {last_name}"
-'''
+"""
         transformer = CamelCaseTransformer()
         result = transformer.transform(code)
 
@@ -136,11 +135,11 @@ class TestSnakeCaseTransformer:
     """Test SnakeCaseTransformer."""
 
     def test_transform_simple_function(self):
-        code = '''
+        code = """
 def getUserName(userId):
     userName = fetchUser(userId)
     return userName
-'''
+"""
         transformer = SnakeCaseTransformer()
         result = transformer.transform(code)
 
@@ -153,11 +152,11 @@ def getUserName(userId):
         assert result.changes_made > 0
 
     def test_transform_preserves_builtins(self):
-        code = '''
+        code = """
 def processItems(items):
     result = len(items)
     return True
-'''
+"""
         transformer = SnakeCaseTransformer()
         result = transformer.transform(code)
 
@@ -165,10 +164,10 @@ def processItems(items):
         assert "True" in result.transformed_code
 
     def test_no_changes_needed(self):
-        code = '''
+        code = """
 def process_items(items):
     return items
-'''
+"""
         transformer = SnakeCaseTransformer()
         result = transformer.transform(code)
 
@@ -180,14 +179,14 @@ class TestBadNamingTransformer:
     """Test BadNamingTransformer."""
 
     def test_transform_local_variables(self):
-        code = '''
+        code = """
 def calculate_total(items):
     total_price = 0
     for item in items:
         item_price = item.price
         total_price += item_price
     return total_price
-'''
+"""
         transformer = BadNamingTransformer()
         result = transformer.transform(code)
 
@@ -197,12 +196,12 @@ def calculate_total(items):
         assert "total_price" not in result.transformed_code or result.changes_made == 0
 
     def test_transforms_local_variables(self):
-        code = '''
+        code = """
 def calculate(value):
     doubled = value * 2
     tripled = value * 3
     return doubled + tripled
-'''
+"""
         transformer = BadNamingTransformer()
         result = transformer.transform(code)
 
@@ -212,11 +211,11 @@ def calculate(value):
         compile(result.transformed_code, "<string>", "exec")
 
     def test_preserves_single_char_names(self):
-        code = '''
+        code = """
 def process(x, y):
     z = x + y
     return z
-'''
+"""
         transformer = BadNamingTransformer()
         result = transformer.transform(code)
 
@@ -226,7 +225,7 @@ def process(x, y):
         assert "y" in result.transformed_code
 
     def test_deterministic_renaming(self):
-        code = '''
+        code = """
 def process(items):
     total = 0
     count = 0
@@ -234,7 +233,7 @@ def process(items):
         total += item
         count += 1
     return total / count
-'''
+"""
         transformer = BadNamingTransformer()
         result1 = transformer.transform(code)
         result2 = transformer.transform(code)
@@ -248,10 +247,10 @@ class TestFormattingTransformer:
 
     def test_default_formatting(self):
         # Poorly formatted code
-        code = '''
+        code = """
 def hello(   x,y,z   ):
     return x+y+z
-'''
+"""
         transformer = FormattingTransformer(style="default")
         result = transformer.transform(code)
 
@@ -260,11 +259,11 @@ def hello(   x,y,z   ):
         assert result.transformed_code is not None
 
     def test_different_profiles(self):
-        code = '''
+        code = """
 def process(items):
     result = [item for item in items if item > 0]
     return result
-'''
+"""
         # Just verify different profiles can be used
         for style in ["default", "pep8_strict", "wide", "compact"]:
             transformer = FormattingTransformer(style=style)
@@ -276,11 +275,11 @@ class TestTransformerIntegration:
     """Integration tests for transformer pipelines."""
 
     def test_camelcase_then_format(self):
-        code = '''
+        code = """
 def get_user_name(user_id):
     user_data=fetch_user(user_id)
     return user_data
-'''
+"""
         # First transform to camelCase
         camel_transformer = CamelCaseTransformer()
         result1 = camel_transformer.transform(code)
@@ -298,7 +297,7 @@ def get_user_name(user_id):
 
     def test_transform_preserves_syntax(self):
         """Verify transformed code is still valid Python."""
-        code = '''
+        code = """
 def calculate_total_price(item_list):
     total_price = 0
     for current_item in item_list:
@@ -306,7 +305,7 @@ def calculate_total_price(item_list):
         if item_price > 0:
             total_price += item_price
     return total_price
-'''
+"""
         transformer = CamelCaseTransformer()
         result = transformer.transform(code)
 
@@ -315,11 +314,11 @@ def calculate_total_price(item_list):
 
     def test_roundtrip_conversion(self):
         """Test snake -> camel -> snake preserves structure."""
-        original = '''
+        original = """
 def process_user_data(user_input):
     validated_data = validate_input(user_input)
     return validated_data
-'''
+"""
         # Convert to camelCase
         camel = CamelCaseTransformer()
         camel_result = camel.transform(original)
