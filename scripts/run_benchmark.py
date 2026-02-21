@@ -28,6 +28,10 @@ Usage:
 
     # Run specific mode only
     python scripts/run_benchmark.py --mode without_tests
+
+    # Run in parallel (two terminals, separate state files)
+    python scripts/run_benchmark.py --agent claude --model haiku --modes with_tests --run-suffix _wt
+    python scripts/run_benchmark.py --agent claude --model haiku --modes without_tests --run-suffix _wot
 """
 
 import argparse
@@ -62,16 +66,16 @@ ALL_REPOS = ["humanize", "validators", "python-markdown", "more-itertools"]
 ALL_STYLES = ["original", "camelcase", "snakecase", "badnames", "formatting"]
 ALL_MODES = ["with_tests", "without_tests"]
 
-def _get_run_id(agent: str, model: str | None) -> str:
+def _get_run_id(agent: str, model: str | None, suffix: str = "") -> str:
     """Return a unique identifier for an agent+model combination."""
     if model:
-        return f"{agent}_{model}"
-    return agent
+        return f"{agent}_{model}{suffix}"
+    return f"{agent}{suffix}"
 
 
-def _get_dirs(agent: str, model: str | None) -> tuple[Path, Path]:
+def _get_dirs(agent: str, model: str | None, suffix: str = "") -> tuple[Path, Path]:
     """Return (results_dir, state_file) for an agent+model combination."""
-    run_id = _get_run_id(agent, model)
+    run_id = _get_run_id(agent, model, suffix)
     results_dir = DATA_DIR / "results" / f"benchmark_{run_id}"
     state_file = results_dir / "benchmark_state.json"
     return results_dir, state_file
@@ -280,6 +284,7 @@ def main():
     parser = argparse.ArgumentParser(description="Run benchmark with rate limit handling")
     parser.add_argument("--agent", default="claude", help="Agent to use (claude, gemini)")
     parser.add_argument("--model", default=None, help="Model to use (e.g., haiku, sonnet, opus)")
+    parser.add_argument("--run-suffix", default="", help="Suffix appended to run ID for parallel execution (e.g., _wt, _wot)")
     parser.add_argument("--reset", action="store_true", help="Reset progress and start fresh")
     parser.add_argument("--repos", nargs="+", default=ALL_REPOS, help="Repos to test")
     parser.add_argument("--styles", nargs="+", default=ALL_STYLES, help="Styles to test")
@@ -303,8 +308,8 @@ def main():
     )
     args = parser.parse_args()
 
-    run_id = _get_run_id(args.agent, args.model)
-    results_dir, state_file = _get_dirs(args.agent, args.model)
+    run_id = _get_run_id(args.agent, args.model, args.run_suffix)
+    results_dir, state_file = _get_dirs(args.agent, args.model, args.run_suffix)
     results_dir.mkdir(parents=True, exist_ok=True)
 
     # Load or reset state
