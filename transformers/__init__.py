@@ -7,9 +7,12 @@ Available transformers:
 - BadNamingTransformer: Convert descriptive names to single-letter names
 - RuffFormatter: Format code using ruff with configurable settings
 - FormattingTransformer: High-level formatting with predefined styles
+- NoDocstringsTransformer: Remove all module/class/function docstrings
+- NoDocsFullTransformer: Remove docstrings + comments + type annotations
 """
 
 from .base import Transformer, TransformResult
+from .docs import NoDocsFullTransformer, NoDocstringsTransformer
 from .formatting import FormattingTransformer, RuffConfig, RuffFormatter
 from .naming import (
     BadNamingTransformer,
@@ -34,4 +37,7 @@ __all__ = [
     "RuffFormatter",
     "RuffConfig",
     "FormattingTransformer",
+    # Documentation removal transformers
+    "NoDocstringsTransformer",
+    "NoDocsFullTransformer",
 ]

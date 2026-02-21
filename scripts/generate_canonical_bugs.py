@@ -64,8 +64,16 @@ MUTATION_CATEGORY = {
     MutationType.IF_ELSE_SWAP: "if_else_swap",
 }
 ALL_REPOS = ["humanize", "validators", "python-markdown", "more-itertools"]
-ALL_STYLES = ["original", "camelcase", "snakecase", "badnames", "formatting"]
-VARIANT_STYLES = ["camelcase", "snakecase", "badnames", "formatting"]
+ALL_STYLES = [
+    "original",
+    "camelcase",
+    "snakecase",
+    "badnames",
+    "formatting",
+    "nodocstrings",
+    "nodocs_full",
+]
+VARIANT_STYLES = ["camelcase", "snakecase", "badnames", "formatting", "nodocstrings", "nodocs_full"]
 TEST_TIMEOUT = 60
 
 

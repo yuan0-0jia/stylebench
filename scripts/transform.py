@@ -21,6 +21,8 @@ from transformers import (
     BadNamingTransformer,
     CamelCaseTransformer,
     FormattingTransformer,
+    NoDocsFullTransformer,
+    NoDocstringsTransformer,
     SnakeCaseTransformer,
 )
 from transformers.naming import NameAnalyzer
@@ -102,7 +104,7 @@ def main():
     )
     parser.add_argument(
         "transformer",
-        choices=["camelcase", "snakecase", "badnames", "formatting"],
+        choices=["camelcase", "snakecase", "badnames", "formatting", "nodocstrings", "nodocs_full"],
         help="Which transformer to use",
     )
     parser.add_argument("input", type=Path, help="Input directory")
@@ -215,6 +217,12 @@ def main():
     elif args.transformer == "formatting":
         transformer = FormattingTransformer(style=args.style)
         print(f"  Using style: {args.style}")
+
+    elif args.transformer == "nodocstrings":
+        transformer = NoDocstringsTransformer()
+
+    elif args.transformer == "nodocs_full":
+        transformer = NoDocsFullTransformer()
 
     # Transform
     files_changed = transform_directory(transformer, work_dir, dry_run=args.dry_run)

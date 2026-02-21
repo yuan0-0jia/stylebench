@@ -38,5 +38,7 @@ packages = ["benchmarks", "transformers", "bugs"]
 
 [dependency-groups]
 dev = [
+    "matplotlib>=3.10.8",
     "ruff>=0.14.12",
+    "scipy>=1.17.0",
 ]
