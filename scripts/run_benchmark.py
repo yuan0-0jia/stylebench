@@ -29,9 +29,11 @@ Usage:
     # Run specific mode only
     python scripts/run_benchmark.py --mode without_tests
 
-    # Run in parallel (two terminals, separate state files)
-    python scripts/run_benchmark.py --agent claude --model haiku --modes with_tests --run-suffix _wt
-    python scripts/run_benchmark.py --agent claude --model haiku --modes without_tests --run-suffix _wot
+    # Run in parallel (two terminals, separate state files per instance)
+    python scripts/run_benchmark.py --agent claude --model haiku \
+        --modes with_tests --run-suffix _wt
+    python scripts/run_benchmark.py --agent claude --model haiku \
+        --modes without_tests --run-suffix _wot
 """
 
 import argparse
@@ -284,7 +286,10 @@ def main():
     parser = argparse.ArgumentParser(description="Run benchmark with rate limit handling")
     parser.add_argument("--agent", default="claude", help="Agent to use (claude, gemini)")
     parser.add_argument("--model", default=None, help="Model to use (e.g., haiku, sonnet, opus)")
-    parser.add_argument("--run-suffix", default="", help="Suffix appended to run ID for parallel execution (e.g., _wt, _wot)")
+    parser.add_argument(
+        "--run-suffix", default="",
+        help="Suffix for run ID, enables parallel instances (e.g., _wt, _wot)",
+    )
     parser.add_argument("--reset", action="store_true", help="Reset progress and start fresh")
     parser.add_argument("--repos", nargs="+", default=ALL_REPOS, help="Repos to test")
     parser.add_argument("--styles", nargs="+", default=ALL_STYLES, help="Styles to test")
