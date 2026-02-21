@@ -1,5 +1,7 @@
 """Base classes and data structures for StyleBench agents."""
 
+import os
+import signal
 import subprocess
 import time
 from abc import ABC, abstractmethod
@@ -176,6 +178,42 @@ class TrialResult:
         }
 
 
+def _run_popen_with_timeout(
+    cmd: list[str],
+    cwd: Path,
+    env: dict | None,
+    timeout: int,
+) -> subprocess.CompletedProcess:
+    """Run a subprocess with a hard timeout that kills the entire process group.
+
+    Uses start_new_session=True so the child and all its descendants share a
+    process group. On timeout, os.killpg(SIGKILL) kills every process in the
+    group — including grandchildren that would otherwise keep stdout/stderr
+    pipes open and cause proc.communicate() to hang indefinitely.
+
+    Raises subprocess.TimeoutExpired if the timeout fires.
+    """
+    with subprocess.Popen(
+        cmd,
+        cwd=cwd,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        env=env,
+        start_new_session=True,  # Own process group — enables killpg
+    ) as proc:
+        try:
+            stdout, stderr = proc.communicate(timeout=timeout)
+            return subprocess.CompletedProcess(cmd, proc.returncode, stdout, stderr)
+        except subprocess.TimeoutExpired:
+            try:
+                os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
+            except (ProcessLookupError, OSError):
+                proc.kill()  # Fallback if process group lookup fails
+            stdout, stderr = proc.communicate()
+            raise subprocess.TimeoutExpired(cmd, timeout, output=stdout, stderr=stderr)
+
+
 class Agent(ABC):
     """Abstract base class for coding agents.
 
@@ -241,13 +279,8 @@ Instructions:
         self, cmd: list[str], context: BugContext,
     ) -> subprocess.CompletedProcess:
         """Run the agent subprocess. Override for retry logic etc."""
-        return subprocess.run(
-            cmd,
-            cwd=context.repo_path,
-            capture_output=True,
-            text=True,
-            timeout=self.timeout,
-            env=self._get_env(),
+        return _run_popen_with_timeout(
+            cmd, context.repo_path, self._get_env(), self.timeout
         )
 
     def fix_bug(self, context: BugContext) -> FixResult:

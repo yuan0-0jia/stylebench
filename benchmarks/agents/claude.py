@@ -4,7 +4,7 @@ import os
 import subprocess
 import time
 
-from .base import DEFAULT_TIMEOUT, Agent, BugContext
+from .base import DEFAULT_TIMEOUT, Agent, BugContext, _run_popen_with_timeout
 
 
 class ClaudeAgent(Agent):
@@ -43,13 +43,8 @@ class ClaudeAgent(Agent):
         """Run with retry on transient API errors."""
         result = None
         for attempt in range(self.max_retries):
-            result = subprocess.run(
-                cmd,
-                cwd=context.repo_path,
-                capture_output=True,
-                text=True,
-                timeout=self.timeout,
-                env=self._get_env(),
+            result = _run_popen_with_timeout(
+                cmd, context.repo_path, self._get_env(), self.timeout
             )
             output = result.stdout + result.stderr
             if "500" in output or "529" in output or "Internal server error" in output:
