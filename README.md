@@ -58,7 +58,7 @@ StyleBench has 4 stages. Stages 1-3 are complete; pre-generated data is in `styl
 ┌──────────────────────────────────────────────────────────────────────────┐
 │  STAGE 4: AGENT TESTING                                                  │
 │  Run coding agents on bugs, evaluate fix success                         │
-│  Output: stylebench-data/results/benchmark_{agent}/                      │
+│  Output: stylebench-data/results/benchmark_{agent}_{repo}_{mode}/                      │
 └──────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -267,18 +267,20 @@ The harness detects rate-limited API responses and handles them cleanly:
 6. Restore tests, run tests on agent's fix
 7. Score: PASS / FAIL / ERROR / TIMEOUT / NO_FIX
 
-### Pilot Results (200 trials, Claude Haiku 4.5)
+### Full Benchmark Results (800 trials, Claude Haiku 4.5, 2026-02-20)
 
 | Metric | Value |
 |--------|-------|
-| Overall pass rate | 68.0% (136/200) |
-| with_tests | 76.0% (76/100) |
-| without_tests | 60.0% (60/100) |
-| Mode gap | 16pp |
+| Overall pass rate | 88.9% (711/800) |
+| with_tests | 91.8% (367/400) |
+| without_tests | 86.0% (344/400) |
+| Mode gap | 5.8pp |
 
-**By repo**: validators 94%, more-itertools 92%, python-markdown 84%, humanize 2%
+**By repo**: validators 97%, humanize 96%, python-markdown 85%, more-itertools 78%
 
-**By style**: original 67.5%, camelcase 65%, snakecase 70%, badnames 65%, formatting 72.5%
+**By style**: original 91%, badnames 89%, camelcase/snakecase/formatting 88% — style effect is ~4pp (minimal)
+
+**Key finding**: Mutation type is the strongest predictor (30pp range: `add_sub` 70% → `and_or`/`plus_one` 99–100%). Style has minimal effect. Repo difficulty (19pp range) is the second biggest driver.
 
 ---
 
@@ -299,6 +301,7 @@ stylebench/
 │   ├── agents/            # Agent implementations
 │   │   ├── base.py        # Agent ABC, BugContext, FixResult, TrialResult
 │   │   ├── claude.py      # Claude Code CLI agent
+│   │   ├── codex.py       # Codex CLI agent
 │   │   └── gemini.py      # Gemini CLI agent
 │   ├── evaluator.py       # Test running, bug application, file hashing
 │   ├── harness.py         # Trial orchestration, manifest mode
