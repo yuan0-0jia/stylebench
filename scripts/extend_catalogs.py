@@ -75,70 +75,82 @@ def _reconstruct_site(
 
     search_bytes = actual_search_text.encode("utf-8")
 
-    # Strategy 1: Use context to find a unique match.
-    # The context is ~40 chars before + original_text + ~40 chars after.
-    # We search for a substring of the context that spans the mutation.
+    # Strategy 1: Use context to find the right occurrence of original_text.
+    # The context is "~40 chars before" + original_text + "~40 chars after".
+    # So the mutation is near the CENTER of the context string (position ~40).
+    # Find the occurrence of actual_search_text in the context that is closest
+    # to the center, then build a unique anchor from surrounding chars.
+    import re as _re
+
     start_byte = None
-    raw_context = context.lstrip(".")  # strip leading "..."
-    if "..." in raw_context:
-        raw_context = raw_context.split("...")[0]
-    # Build a search string: last 20 chars of context-before + original_text + first 20 chars after
-    # The context replaces newlines with spaces; try to find a unique anchor
     ctx_clean = context.replace("...", "").replace("\n", " ")
-    # Find actual_search_text in the context to get its position
-    ctx_search_idx = ctx_clean.find(actual_search_text)
-    if ctx_search_idx != -1:
-        # Use up to 15 chars before + actual_search_text as anchor
+    ctx_center = len(ctx_clean) // 2
+
+    # Find all occurrences of actual_search_text in ctx_clean
+    search_pat = _re.escape(actual_search_text)
+    all_ctx_matches = [m.start() for m in _re.finditer(search_pat, ctx_clean)]
+    if all_ctx_matches:
+        # Pick occurrence closest to center
+        ctx_search_idx = min(all_ctx_matches, key=lambda p: abs(p - ctx_center))
+        # Build anchor: up to 15 chars before + actual_search_text + up to 10 chars after
         anchor_before = ctx_clean[max(0, ctx_search_idx - 15) : ctx_search_idx]
-        anchor = (anchor_before + actual_search_text).strip()
+        anchor_after = ctx_clean[
+            ctx_search_idx + len(actual_search_text) : ctx_search_idx + len(actual_search_text) + 10
+        ]
+        anchor = (anchor_before + actual_search_text + anchor_after).strip()
         if len(anchor) >= len(actual_search_text) + 3:
-            # Search for anchor in source (with whitespace normalization)
-            # Build a window around the target line for performance
+            # Search for anchor in source window (with whitespace normalization)
             window_start = max(0, line_idx - 10)
             window_start_byte = sum(len(ln.encode("utf-8")) for ln in lines[:window_start])
             window_end = min(len(lines), line_idx + 15)
             window_end_byte = sum(len(ln.encode("utf-8")) for ln in lines[:window_end])
-            window = source[window_start_byte:window_end_byte].replace("\n", " ")
-            # Normalize multiple spaces
-            import re as _re
-
-            window_norm = _re.sub(r" +", " ", window)
-            anchor_norm = _re.sub(r" +", " ", anchor)
+            orig_window = source[window_start_byte:window_end_byte]
+            window_norm = _re.sub(r"[ \n\t]+", " ", orig_window)
+            anchor_norm = _re.sub(r"[ \n\t]+", " ", anchor)
             pos = window_norm.find(anchor_norm)
             if pos != -1:
-                # Map normalized position back to original bytes
-                # (approximate: count chars up to pos in original window)
-                orig_window = source[window_start_byte:window_end_byte]
-                norm_chars = 0
+                # Map whitespace-normalized position back to byte offset
                 i = 0
+                norm_chars = 0
                 while i < len(orig_window) and norm_chars < pos:
-                    ch = orig_window[i]
-                    if ch == " " or ch == "\n":
-                        # Consume all consecutive whitespace as one space
+                    if orig_window[i] in " \n\t":
                         while i < len(orig_window) and orig_window[i] in " \n\t":
                             i += 1
                         norm_chars += 1
                     else:
                         i += 1
                         norm_chars += 1
-                # i now points to start of anchor in orig_window
-                # Search for actual_search_text after the anchor portion
+                # i is start of anchor in orig_window; find actual_search_text within it
+                # Use word-boundary match for identifier tokens to avoid hitting
+                # substrings (e.g., 'p' in 'map' or 'x' in 'xx_hi').
                 sub = orig_window[i:]
-                sub_bytes = sub.encode("utf-8")
-                p = sub_bytes.find(search_bytes)
+                is_identifier = bool(_re.match(r"^[A-Za-z_]\w*$", actual_search_text))
+                if is_identifier:
+                    wb_match = _re.search(r"\b" + _re.escape(actual_search_text) + r"\b", sub)
+                    p = wb_match.start() if wb_match else -1
+                else:
+                    p = sub.encode("utf-8").find(search_bytes)
                 if p != -1:
                     start_byte = window_start_byte + len(orig_window[:i].encode("utf-8")) + p
 
     # Strategy 2: Line-based search (fallback)
     if start_byte is None:
-        # Search in source bytes starting from a window around the target line
+        # Search in source bytes starting from a window around the target line.
+        # Extend window by number of newlines in actual_search_text so multi-line
+        # mutations (e.g. if_else_swap) are fully contained in the window.
+        num_extra = actual_search_text.count("\n")
         window_start = max(0, line_idx - 5)
         window_start_byte = sum(len(ln.encode("utf-8")) for ln in lines[:window_start])
-        window_end = min(len(lines), line_idx + 10)
+        window_end = min(len(lines), line_idx + max(10, num_extra + 5))
         window_end_byte = sum(len(ln.encode("utf-8")) for ln in lines[:window_end])
 
-        window_bytes = src_bytes[window_start_byte:window_end_byte]
-        pos_in_window = window_bytes.find(search_bytes)
+        window_text = src_bytes[window_start_byte:window_end_byte].decode("utf-8", errors="replace")
+        is_identifier = bool(_re.match(r"^[A-Za-z_]\w*$", actual_search_text))
+        if is_identifier:
+            wb_match = _re.search(r"\b" + _re.escape(actual_search_text) + r"\b", window_text)
+            pos_in_window = wb_match.start() if wb_match else -1
+        else:
+            pos_in_window = window_text.find(actual_search_text)
 
         if pos_in_window == -1:
             trunc = repr(actual_search_text[:40])
