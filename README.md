@@ -107,7 +107,9 @@ Transform code to different naming conventions and formatting styles.
 | `camelcase` | snake_case → camelCase | `get_user_name` → `getUserName` |
 | `snakecase` | camelCase → snake_case | `getUserName` → `get_user_name` |
 | `badnames` | Local vars → single letters | `result = x + y` → `a = x + y` |
-| `formatting` | Compact ruff formatting | 79 chars, single quotes |
+| `formatting` | Ruff default formatting | 88-char lines, double quotes |
+| `nodocstrings` | Remove all docstrings | Module/class/function docstrings stripped |
+| `nodocs_full` | Remove all documentation | Docstrings + inline comments stripped |
 
 ### Transform a Project
 
@@ -125,16 +127,25 @@ python scripts/transform.py badnames \
     ../stylebench-data/original/humanize \
     ../stylebench-data/badnames/humanize
 
-# Apply compact formatting
+# Apply ruff formatting
 python scripts/transform.py formatting \
     ../stylebench-data/original/humanize \
-    ../stylebench-data/formatting/humanize \
-    --style compact
+    ../stylebench-data/formatting/humanize
+
+# Remove docstrings
+python scripts/transform.py nodocstrings \
+    ../stylebench-data/original/humanize \
+    ../stylebench-data/nodocstrings/humanize
+
+# Remove all documentation (docstrings + comments)
+python scripts/transform.py nodocs_full \
+    ../stylebench-data/original/humanize \
+    ../stylebench-data/nodocs_full/humanize
 ```
 
 ### Pre-Generated Style Variants
 
-All 20 variants (4 repos × 5 styles) are already in `stylebench-data/`:
+All 28 variants (4 repos × 7 styles) are already in `stylebench-data/`:
 
 ```
 stylebench-data/
@@ -142,7 +153,9 @@ stylebench-data/
 ├── camelcase/          # snake_case → camelCase
 ├── snakecase/          # camelCase → snake_case
 ├── badnames/           # Single-letter local variables
-└── formatting/         # Compact formatting
+├── formatting/         # Ruff default formatting
+├── nodocstrings/       # Docstrings removed
+└── nodocs_full/        # All documentation removed
 ```
 
 ---
@@ -167,15 +180,20 @@ Inject semantic mutations and validate they cause test failures.
 
 ### Canonical Bug Catalogs
 
-For the benchmark, we use **canonical catalogs** (`bugs_canonical/`) where the same logical mutation is applied consistently across all 5 style variants. This ensures fair comparison across styles.
+For the benchmark, we use **canonical catalogs** (`bugs_canonical/`) where the same logical mutation is applied consistently across all 7 style variants. This ensures fair comparison across styles.
 
-- 20 catalogs (4 repos × 5 styles), 20 bugs each = **400 bugs**
+- 28 catalogs (4 repos × 7 styles), 20 bugs each = **560 bugs**
 - All bugs have `line_number` and `context` for precise application
 - 7-8 mutation types per repo (depends on code characteristics)
+- Original 5 styles generated via `scripts/generate_canonical_bugs.py`
+- Doc styles (nodocstrings, nodocs_full) extended via `scripts/extend_catalogs.py`
 
 ```bash
-# Generate canonical catalogs (already done)
+# Generate canonical catalogs for 5 naming/formatting styles (already done)
 python scripts/generate_canonical_bugs.py --all
+
+# Extend to new style variants (e.g., doc styles)
+python scripts/extend_catalogs.py --styles nodocstrings nodocs_full
 
 # Generate ad-hoc bugs for a single repo/style
 python scripts/generate_bugs.py humanize camelcase --count 50
@@ -203,7 +221,7 @@ Run coding agents on bugs and evaluate fix success.
 The benchmark runner handles rate limiting, resumption, and per-bug progress tracking:
 
 ```bash
-# Run the full 800-trial benchmark (20 bugs × 5 styles × 4 repos × 2 modes)
+# Run the full 1120-trial benchmark (20 bugs × 7 styles × 4 repos × 2 modes)
 python scripts/run_benchmark.py --catalog-dir bugs_canonical
 
 # Resume after rate limiting (automatically picks up where it left off)
@@ -267,20 +285,34 @@ The harness detects rate-limited API responses and handles them cleanly:
 6. Restore tests, run tests on agent's fix
 7. Score: PASS / FAIL / ERROR / TIMEOUT / NO_FIX
 
-### Full Benchmark Results (800 trials, Claude Haiku 4.5, 2026-02-20)
+### Full Benchmark Results (1120 trials, Claude Haiku 4.5, 2026-02-22)
 
 | Metric | Value |
 |--------|-------|
-| Overall pass rate | 88.9% (711/800) |
-| with_tests | 91.8% (367/400) |
-| without_tests | 86.0% (344/400) |
-| Mode gap | 5.8pp |
+| Overall pass rate | 88.3% (989/1120) |
+| with_tests | 91.6% (513/560) |
+| without_tests | 85.0% (476/560) |
+| Mode gap | 6.6pp |
 
-**By repo**: validators 97%, humanize 96%, python-markdown 85%, more-itertools 78%
+**By repo** (avg across 7 styles): validators 96%, humanize 94%, python-markdown 86%, more-itertools 77%
 
-**By style**: original 91%, badnames 89%, camelcase/snakecase/formatting 88% — style effect is ~4pp (minimal)
+**By style** (avg across 4 repos):
 
-**Key finding**: Mutation type is the strongest predictor (30pp range: `add_sub` 70% → `and_or`/`plus_one` 99–100%). Style has minimal effect. Repo difficulty (19pp range) is the second biggest driver.
+| Style | with_tests | without_tests | Combined |
+|-------|-----------|---------------|---------|
+| original | 93.8% | 87.5% | 90.6% |
+| camelcase | 95.0% | 87.5% | 91.2% |
+| snakecase | 90.0% | 86.2% | 88.1% |
+| badnames | 93.5% | 89.0% | 91.2% |
+| formatting | 91.2% | 85.0% | 88.1% |
+| nodocstrings | 92.5% | 83.8% | 88.1% |
+| nodocs_full | 90.0% | 81.2% | 85.6% |
+
+**Key findings**:
+- Style effect is small (~6pp range); repo difficulty dominates (~20pp range)
+- Mutation type is the strongest predictor (30pp range: `add_sub` 70% → `and_or`/`plus_one` 99–100%)
+- Documentation removal hurts most without tests: `nodocs_full` has the lowest without_tests rate (81.2%)
+- With test feedback, documentation removal has minimal effect (~92% for all styles)
 
 ---
 
@@ -296,7 +328,8 @@ stylebench/
 ├── transformers/          # Code style transformers
 │   ├── base.py            # Base transformer class
 │   ├── naming.py          # CamelCase, SnakeCase, BadNaming
-│   └── formatting.py      # Ruff formatting
+│   ├── formatting.py      # Ruff formatting
+│   └── docs.py            # Docstring/comment removal
 ├── benchmarks/            # Agent harness
 │   ├── agents/            # Agent implementations
 │   │   ├── base.py        # Agent ABC, BugContext, FixResult, TrialResult
@@ -309,7 +342,9 @@ stylebench/
 ├── scripts/
 │   ├── run_benchmark.py   # Full benchmark with rate-limit handling + resumption
 │   ├── transform.py       # CLI for style transformation
-│   └── generate_bugs.py   # CLI for bug generation
+│   ├── generate_bugs.py   # CLI for ad-hoc bug generation
+│   ├── generate_canonical_bugs.py  # Canonical bug generation (mapped across styles)
+│   └── extend_catalogs.py # Extend catalogs to new style variants
 ├── tests/                 # Test suite (85+ tests)
 └── docs/
     └── BENCHMARKING.md    # Quick command reference

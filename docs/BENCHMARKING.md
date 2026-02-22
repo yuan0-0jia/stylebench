@@ -5,7 +5,7 @@ Command reference for StyleBench. See [README.md](../README.md) for the full wor
 ## Running the Benchmark
 
 ```bash
-# Full 800-trial benchmark (20 bugs × 5 styles × 4 repos × 2 modes)
+# Full 1120-trial benchmark (20 bugs × 7 styles × 4 repos × 2 modes)
 python scripts/run_benchmark.py --catalog-dir bugs_canonical
 
 # Resume after rate limiting (automatic)
@@ -70,6 +70,12 @@ python scripts/transform.py badnames INPUT OUTPUT
 # formatting
 python scripts/transform.py formatting INPUT OUTPUT --style compact|wide|pep8_strict
 
+# nodocstrings (remove docstrings)
+python scripts/transform.py nodocstrings INPUT OUTPUT
+
+# nodocs_full (remove docstrings + comments)
+python scripts/transform.py nodocs_full INPUT OUTPUT
+
 # Options
 --dry-run       # Preview without writing
 --in-place      # Modify input directory
@@ -96,7 +102,7 @@ python scripts/generate_bugs.py --all --output ../stylebench-data/bugs/
 
 **Repos**: `humanize`, `validators`, `python-markdown`, `more-itertools`
 
-**Styles**: `original`, `camelcase`, `snakecase`, `badnames`, `formatting`
+**Styles**: `original`, `camelcase`, `snakecase`, `badnames`, `formatting`, `nodocstrings`, `nodocs_full`
 
 ## Repository Config
 
@@ -128,10 +134,11 @@ stylebench-data/
 ├── bugs/                  # Ad-hoc catalogs (872 bugs, for development)
 │   ├── humanize-original.json
 │   └── ...
-└── bugs_canonical/        # Canonical catalogs (400 bugs, for benchmark)
+└── bugs_canonical/        # Canonical catalogs (560 bugs, for benchmark)
     ├── humanize-original.json
     ├── humanize-camelcase.json
-    └── ...                # 20 catalogs, 20 bugs each
+    ├── humanize-nodocstrings.json
+    └── ...                # 28 catalogs (4 repos × 7 styles), 20 bugs each
 ```
 
 ## Python API
