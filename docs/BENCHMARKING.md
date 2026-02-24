@@ -61,9 +61,6 @@ uv run python -m benchmarks.runner ... --bugs humanize-original-001 humanize-ori
 # camelCase (requires --packages)
 python scripts/transform.py camelcase INPUT OUTPUT --packages PKG
 
-# snakeCase (requires --packages)
-python scripts/transform.py snakecase INPUT OUTPUT --packages PKG
-
 # badnames (no --packages needed)
 python scripts/transform.py badnames INPUT OUTPUT
 
@@ -131,7 +128,7 @@ python scripts/generate_bugs.py --all --output ../stylebench-data/bugs/
 
 ```
 stylebench-data/
-├── bugs/                  # Ad-hoc catalogs (872 bugs, for development)
+├── bugs/                  # Ad-hoc catalogs (762 bugs, for development)
 │   ├── humanize-original.json
 │   └── ...
 └── bugs_canonical/        # Canonical catalogs (480 bugs, for benchmark)

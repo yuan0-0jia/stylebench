@@ -199,14 +199,14 @@ python scripts/generate_bugs.py humanize camelcase --count 50
 
 ### Legacy Bug Catalogs
 
-The `bugs/` directory contains **872 ad-hoc validated bugs** (used for development/testing, not the benchmark):
+The `bugs/` directory contains **762 ad-hoc validated bugs** (used for development/testing, not the benchmark):
 
-| Repo | Bugs (across 5 styles) |
+| Repo | Bugs (across 4 styles) |
 |------|------------------------|
-| humanize | 233 |
-| validators | 191 |
-| python-markdown | 200 |
-| more-itertools | 248 |
+| humanize | 196 |
+| validators | 168 |
+| python-markdown | 198 |
+| more-itertools | 200 |
 
 ---
 
@@ -314,6 +314,7 @@ The harness detects rate-limited API responses and handles them cleanly:
 | `plus_one` | 93% | 100% | 96% |
 | `and_or` | 100% | 83% | 92% |
 | `true_false` | 95% | 82% | 89% |
+| `return_none` | 100% | 78% | 89% |
 | `in_not_in` | 92% | 83% | 88% |
 | `if_else_swap` | 91% | 68% | 80% |
 | `add_sub` | 71% | 68% | 70% |
