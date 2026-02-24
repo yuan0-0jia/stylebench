@@ -2064,6 +2064,40 @@ class BadNamingTransformer(Transformer):
                         ):
                             defined_names.add(name)
 
+                # Comprehension/generator iteration variables:
+                # e.g. `item` in `[f(item) for item in items]`
+                elif n.type == "for_in_clause":
+                    left = n.child_by_field_name("left")
+                    if left and left.type == "identifier":
+                        name = source_bytes[left.start_byte : left.end_byte]
+                        name = name.decode("utf-8")
+                        if (
+                            name not in param_names
+                            and name not in nonlocal_names
+                            and self._is_transformable(name, ctx)
+                        ):
+                            defined_names.add(name)
+
+                # Exception handler variables:
+                # e.g. `err` in `except TypeError as err:`
+                # AST: except_clause -> as_pattern -> as_pattern_target -> identifier
+                elif n.type == "except_clause":
+                    for child in n.children:
+                        if child.type == "as_pattern":
+                            for subchild in child.children:
+                                if subchild.type == "as_pattern_target":
+                                    ident = subchild.children[0] if subchild.children else None
+                                    if ident and ident.type == "identifier":
+                                        name = source_bytes[ident.start_byte : ident.end_byte]
+                                        name = name.decode("utf-8")
+                                        if (
+                                            name not in param_names
+                                            and name not in nonlocal_names
+                                            and self._is_transformable(name, ctx)
+                                        ):
+                                            defined_names.add(name)
+                            break
+
                 for child in n.children:
                     new_depth = depth + 1 if n.type == "function_definition" else depth
                     collect_local_defs(child, new_depth)
@@ -2135,6 +2169,25 @@ class BadNamingTransformer(Transformer):
                             name = name.decode("utf-8")
                             if name not in nested_nonlocal:
                                 local_names.add(name)
+                    elif n.type == "for_in_clause":
+                        left = n.child_by_field_name("left")
+                        if left and left.type == "identifier":
+                            name = source_bytes[left.start_byte : left.end_byte]
+                            name = name.decode("utf-8")
+                            if name not in nested_nonlocal:
+                                local_names.add(name)
+                    elif n.type == "except_clause":
+                        for child in n.children:
+                            if child.type == "as_pattern":
+                                for subchild in child.children:
+                                    if subchild.type == "as_pattern_target":
+                                        ident = subchild.children[0] if subchild.children else None
+                                        if ident and ident.type == "identifier":
+                                            name = source_bytes[ident.start_byte : ident.end_byte]
+                                            name = name.decode("utf-8")
+                                            if name not in nested_nonlocal:
+                                                local_names.add(name)
+                                break
                     for child in n.children:
                         new_nested = in_nested or n.type == "function_definition"
                         collect_local(child, new_nested)

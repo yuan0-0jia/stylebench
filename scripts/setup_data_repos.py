@@ -20,7 +20,7 @@ REPOS = {
     "more-itertools": {"test_deps": [], "ignore": []},
 }
 
-STYLES = ["original", "camelcase", "snakecase", "badnames", "formatting"]
+STYLES = ["original", "camelcase", "badnames", "formatting"]
 
 
 def setup_repo(repo_path: Path, test_deps: list[str], ignore: list[str]) -> bool:

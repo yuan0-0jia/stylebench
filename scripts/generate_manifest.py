@@ -24,7 +24,7 @@ from pathlib import Path
 DATA_DIR = Path("/Users/yuan/stylebench-data")
 
 ALL_REPOS = ["humanize", "validators", "python-markdown", "more-itertools"]
-ALL_STYLES = ["original", "camelcase", "snakecase", "badnames", "formatting"]
+ALL_STYLES = ["original", "camelcase", "badnames", "formatting", "nodocstrings", "nodocs_full"]
 
 
 def load_catalog_bugs(

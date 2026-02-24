@@ -65,7 +65,7 @@ AGENT_TRIAL_DELAY = {
 }
 
 ALL_REPOS = ["humanize", "validators", "python-markdown", "more-itertools"]
-ALL_STYLES = ["original", "camelcase", "snakecase", "badnames", "formatting"]
+ALL_STYLES = ["original", "camelcase", "badnames", "formatting"]
 ALL_MODES = ["with_tests", "without_tests"]
 
 

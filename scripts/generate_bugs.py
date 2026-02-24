@@ -67,7 +67,7 @@ signal.signal(signal.SIGINT, signal_handler)
 signal.signal(signal.SIGTERM, signal_handler)
 atexit.register(cleanup_children)
 
-STYLES = ["original", "camelcase", "snakecase", "badnames", "formatting"]
+STYLES = ["original", "camelcase", "badnames", "formatting"]
 
 
 def generate_for_variant(

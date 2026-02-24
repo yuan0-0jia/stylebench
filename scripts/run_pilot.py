@@ -27,7 +27,7 @@ DELAY_BETWEEN_REPOS = 10  # seconds
 
 # Repos to test (excluding humanize which achieved 100%)
 REPOS = ["validators", "python-markdown", "more-itertools"]
-STYLES = ["original", "camelcase", "snakecase", "badnames", "formatting"]
+STYLES = ["original", "camelcase", "badnames", "formatting"]
 MODES = ["with_tests", "without_tests"]
 
 

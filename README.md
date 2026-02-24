@@ -105,7 +105,6 @@ Transform code to different naming conventions and formatting styles.
 | Style | Description | Example |
 |-------|-------------|---------|
 | `camelcase` | snake_case → camelCase | `get_user_name` → `getUserName` |
-| `snakecase` | camelCase → snake_case | `getUserName` → `get_user_name` |
 | `badnames` | Local vars → single letters | `result = x + y` → `a = x + y` |
 | `formatting` | Ruff default formatting | 88-char lines, double quotes |
 | `nodocstrings` | Remove all docstrings | Module/class/function docstrings stripped |
@@ -145,13 +144,12 @@ python scripts/transform.py nodocs_full \
 
 ### Pre-Generated Style Variants
 
-All 28 variants (4 repos × 7 styles) are already in `stylebench-data/`:
+All 24 variants (4 repos × 6 styles) are already in `stylebench-data/`:
 
 ```
 stylebench-data/
 ├── original/           # Unmodified source
 ├── camelcase/          # snake_case → camelCase
-├── snakecase/          # camelCase → snake_case
 ├── badnames/           # Single-letter local variables
 ├── formatting/         # Ruff default formatting
 ├── nodocstrings/       # Docstrings removed
@@ -180,12 +178,12 @@ Inject semantic mutations and validate they cause test failures.
 
 ### Canonical Bug Catalogs
 
-For the benchmark, we use **canonical catalogs** (`bugs_canonical/`) where the same logical mutation is applied consistently across all 7 style variants. This ensures fair comparison across styles.
+For the benchmark, we use **canonical catalogs** (`bugs_canonical/`) where the same logical mutation is applied consistently across all 6 style variants. This ensures fair comparison across styles.
 
-- 28 catalogs (4 repos × 7 styles), 20 bugs each = **560 bugs**
+- 24 catalogs (4 repos × 6 styles), 20 bugs each = **480 bugs**
 - All bugs have `line_number` and `context` for precise application
 - 7-8 mutation types per repo (depends on code characteristics)
-- Original 5 styles generated via `scripts/generate_canonical_bugs.py`
+- Original 4 styles generated via `scripts/generate_canonical_bugs.py`
 - Doc styles (nodocstrings, nodocs_full) extended via `scripts/extend_catalogs.py`
 
 ```bash
@@ -221,7 +219,7 @@ Run coding agents on bugs and evaluate fix success.
 The benchmark runner handles rate limiting, resumption, and per-bug progress tracking:
 
 ```bash
-# Run the full 1120-trial benchmark (20 bugs × 7 styles × 4 repos × 2 modes)
+# Run the full 960-trial benchmark (20 bugs × 6 styles × 4 repos × 2 modes)
 python scripts/run_benchmark.py --catalog-dir bugs_canonical
 
 # Resume after rate limiting (automatically picks up where it left off)
@@ -285,25 +283,24 @@ The harness detects rate-limited API responses and handles them cleanly:
 6. Restore tests, run tests on agent's fix
 7. Score: PASS / FAIL / ERROR / TIMEOUT / NO_FIX
 
-### Full Benchmark Results (1120 trials, Claude Haiku 4.5, 2026-02-22)
+### Full Benchmark Results (960 trials, Claude Haiku 4.5, 2026-02-24)
 
 | Metric | Value |
 |--------|-------|
-| Overall pass rate | 88.3% (989/1120) |
-| with_tests | 91.6% (513/560) |
-| without_tests | 85.0% (476/560) |
-| Mode gap | 6.6pp |
+| Overall pass rate | 88.4% (849/960) |
+| with_tests | 91.9% (441/480) |
+| without_tests | 85.0% (408/480) |
+| Mode gap | 6.9pp |
 
-**By repo** (avg across 7 styles): validators 96%, humanize 94%, python-markdown 86%, more-itertools 77%
+**By repo** (avg across 6 styles): validators 95%, humanize 95%, python-markdown 85%, more-itertools 78%
 
 **By style** (avg across 4 repos):
 
 | Style | with_tests | without_tests | Combined |
 |-------|-----------|---------------|---------|
 | original | 93.8% | 87.5% | 90.6% |
-| camelcase | 95.0% | 87.5% | 91.2% |
-| snakecase | 90.0% | 86.2% | 88.1% |
-| badnames | 93.5% | 89.0% | 91.2% |
+| camelcase | 92.5% | 83.8% | 88.1% |
+| badnames | 91.2% | 88.8% | 90.0% |
 | formatting | 91.2% | 85.0% | 88.1% |
 | nodocstrings | 92.5% | 83.8% | 88.1% |
 | nodocs_full | 90.0% | 81.2% | 85.6% |

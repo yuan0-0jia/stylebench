@@ -363,7 +363,15 @@ class BenchmarkHarness:
         }
 
     # Known style names used in bug IDs
-    _KNOWN_STYLES = {"original", "camelcase", "snakecase", "badnames", "formatting", "verbose"}
+    _KNOWN_STYLES = {
+        "original",
+        "camelcase",
+        "badnames",
+        "formatting",
+        "nodocstrings",
+        "nodocs_full",
+        "verbose",
+    }
 
     def _extract_style(self, bug_id: str) -> str:
         """Extract style from bug ID.

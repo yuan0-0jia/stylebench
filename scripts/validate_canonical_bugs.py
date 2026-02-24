@@ -27,7 +27,7 @@ DATA_DIR = Path("/Users/yuan/stylebench-data")
 CATALOG_DIR = DATA_DIR / "bugs_canonical"
 
 ALL_REPOS = ["humanize", "validators", "python-markdown", "more-itertools"]
-ALL_STYLES = ["original", "camelcase", "snakecase", "badnames", "formatting"]
+ALL_STYLES = ["original", "camelcase", "badnames", "formatting"]
 
 
 def phase1_apply_revert(verbose=False):
