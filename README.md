@@ -305,11 +305,24 @@ The harness detects rate-limited API responses and handles them cleanly:
 | nodocstrings | 92.5% | 83.8% | 88.1% |
 | nodocs_full | 90.0% | 81.2% | 85.6% |
 
+**By mutation type** (avg across 6 styles):
+
+| Mutation | with_tests | without_tests | Combined |
+|----------|-----------|---------------|---------|
+| `eq_ne` | 100% | 99% | 99% |
+| `var_swap` | 97% | 100% | 99% |
+| `plus_one` | 93% | 100% | 96% |
+| `and_or` | 100% | 83% | 92% |
+| `true_false` | 95% | 82% | 89% |
+| `in_not_in` | 92% | 83% | 88% |
+| `if_else_swap` | 91% | 68% | 80% |
+| `add_sub` | 71% | 68% | 70% |
+
 **Key findings**:
-- Style effect is small (~6pp range); repo difficulty dominates (~20pp range)
-- Mutation type is the strongest predictor (30pp range: `add_sub` 70% → `and_or`/`plus_one` 99–100%)
+- Style effect is small (~5pp range); repo difficulty dominates (~18pp range)
+- Mutation type is the strongest predictor (30pp range: `add_sub` 70% → `eq_ne`/`var_swap` 99%)
 - Documentation removal hurts most without tests: `nodocs_full` has the lowest without_tests rate (81.2%)
-- With test feedback, documentation removal has minimal effect (~92% for all styles)
+- With test feedback, documentation removal has minimal effect (~90–94% for all styles)
 
 ---
 
