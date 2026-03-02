@@ -167,12 +167,17 @@ Inject semantic mutations and validate they cause test failures.
 | Type | Mutation | Example |
 |------|----------|---------|
 | `eq_ne` | `==` ↔ `!=` | `x == 0` → `x != 0` |
+| `lt_gt` | `<` ↔ `>` | `x < 10` → `x > 10` |
+| `le_ge` | `<=` ↔ `>=` | `x <= 10` → `x >= 10` |
 | `var_swap` | Swap variables | `return x` → `return y` |
 | `add_sub` | `+` ↔ `-` | `x + 1` → `x - 1` |
+| `mul_div` | `*` ↔ `/` | `x * 2` → `x / 2` |
 | `and_or` | `and` ↔ `or` | `a and b` → `a or b` |
 | `if_else_swap` | Swap if/else | Invert branch logic |
 | `in_not_in` | `in` ↔ `not in` | `x in lst` → `x not in lst` |
+| `is_is_not` | `is` ↔ `is not` | `x is None` → `x is not None` |
 | `plus_one` | `n` → `n+1` | `range(10)` → `range(11)` |
+| `minus_one` | `n` → `n-1` | `range(10)` → `range(9)` |
 | `true_false` | `True` ↔ `False` | `return True` → `return False` |
 | `return_none` | Return None | `return val` → `return None` |
 
@@ -180,10 +185,10 @@ Inject semantic mutations and validate they cause test failures.
 
 For the benchmark, we use **canonical catalogs** (`bugs_canonical/`) where the same logical mutation is applied consistently across all 6 style variants. This ensures fair comparison across styles.
 
-- 24 catalogs (4 repos × 6 styles), 20 bugs each = **480 bugs**
+- 24 catalogs (4 repos × 6 styles), 40 bugs each = **960 bugs**
 - All bugs have `line_number` and `context` for precise application
-- 7-8 mutation types per repo (depends on code characteristics)
-- Original 4 styles generated via `scripts/generate_canonical_bugs.py`
+- 14 mutation types across all repos: eq_ne, lt_gt, le_ge, var_swap, add_sub, mul_div, and_or, if_else_swap, in_not_in, is_is_not, plus_one, minus_one, true_false, return_none
+- Bugs 001-020: original set; bugs 021-040: naming-changed set (bug lines guaranteed different in camelcase/badnames vs original)
 - Doc styles (nodocstrings, nodocs_full) extended via `scripts/extend_catalogs.py`
 
 ```bash
@@ -219,7 +224,7 @@ Run coding agents on bugs and evaluate fix success.
 The benchmark runner handles rate limiting, resumption, and per-bug progress tracking:
 
 ```bash
-# Run the full 960-trial benchmark (20 bugs × 6 styles × 4 repos × 2 modes)
+# Run the full 1920-trial benchmark (40 bugs × 6 styles × 4 repos × 2 modes)
 python scripts/run_benchmark.py --catalog-dir bugs_canonical
 
 # Resume after rate limiting (automatically picks up where it left off)
@@ -283,47 +288,46 @@ The harness detects rate-limited API responses and handles them cleanly:
 6. Restore tests, run tests on agent's fix
 7. Score: PASS / FAIL / ERROR / TIMEOUT / NO_FIX
 
-### Full Benchmark Results (960 trials, Claude Haiku 4.5, 2026-02-24)
+### Full Benchmark Results (1920 trials, Claude Haiku 4.5)
 
 | Metric | Value |
 |--------|-------|
-| Overall pass rate | 88.4% (849/960) |
-| with_tests | 91.9% (441/480) |
-| without_tests | 85.0% (408/480) |
-| Mode gap | 6.9pp |
+| Overall pass rate | 84.9% (1631/1920) |
+| with_tests | 89.3% (857/960) |
+| without_tests | 80.6% (774/960) |
+| Mode gap | 8.7pp |
 
-**By repo** (avg across 6 styles): validators 95%, humanize 95%, python-markdown 85%, more-itertools 78%
+**By repo** (combined modes): validators 96%, humanize 92%, more-itertools 84%, python-markdown 68%
 
-**By style** (avg across 4 repos):
+**By style** (combined modes, 320 trials each):
 
 | Style | with_tests | without_tests | Combined |
 |-------|-----------|---------------|---------|
-| original | 93.8% | 87.5% | 90.6% |
-| camelcase | 92.5% | 83.8% | 88.1% |
-| badnames | 91.2% | 88.8% | 90.0% |
-| formatting | 91.2% | 85.0% | 88.1% |
-| nodocstrings | 92.5% | 83.8% | 88.1% |
-| nodocs_full | 90.0% | 81.2% | 85.6% |
+| original | 89.4% | 81.2% | 85.3% |
+| camelcase | 91.9% | 78.8% | 85.3% |
+| badnames | 88.8% | 82.5% | 85.6% |
+| formatting | 88.1% | 81.2% | 84.7% |
+| nodocstrings | 88.1% | 80.6% | 84.4% |
+| nodocs_full | 89.4% | 79.4% | 84.4% |
 
-**By mutation type** (avg across 6 styles):
+**By mutation type** (combined modes, all 14 types):
 
-| Mutation | with_tests | without_tests | Combined |
-|----------|-----------|---------------|---------|
-| `eq_ne` | 100% | 99% | 99% |
-| `var_swap` | 97% | 100% | 99% |
-| `plus_one` | 93% | 100% | 96% |
-| `and_or` | 100% | 83% | 92% |
-| `true_false` | 95% | 82% | 89% |
-| `return_none` | 100% | 78% | 89% |
-| `in_not_in` | 92% | 83% | 88% |
-| `if_else_swap` | 91% | 68% | 80% |
-| `add_sub` | 71% | 68% | 70% |
+| Mutation | Combined | Mutation | Combined |
+|----------|---------|----------|---------|
+| `var_swap` | 99% | `le_ge` | 85% |
+| `plus_one` | 96% | `mul_div` | 83% |
+| `eq_ne` | 91% | `lt_gt` | 82% |
+| `and_or` | 92% | `minus_one` | 82% |
+| `return_none` | 89% | `if_else_swap` | 80% |
+| `true_false` | 89% | `is_is_not` | 76% |
+| `in_not_in` | 88% | `add_sub` | 70% |
 
 **Key findings**:
-- Style effect is small (~5pp range); repo difficulty dominates (~18pp range)
-- Mutation type is the strongest predictor (30pp range: `add_sub` 70% → `eq_ne`/`var_swap` 99%)
-- Documentation removal hurts most without tests: `nodocs_full` has the lowest without_tests rate (81.2%)
-- With test feedback, documentation removal has minimal effect (~90–94% for all styles)
+- Style has **no statistically significant effect** (p = 0.998, Cramer's V = 0.012; 1pp range across all styles)
+- Repository difficulty is the dominant factor (28pp range: python-markdown 68% → validators 96%)
+- Mutation type spans 29pp: `var_swap` 99% → `add_sub` 70%
+- Mode gap is repo-dependent: python-markdown 22pp, more-itertools 7pp, humanize 4pp, validators 1pp
+- Badnames (single-letter variables) does **not** hurt fix rates vs original
 
 ---
 

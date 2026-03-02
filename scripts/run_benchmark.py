@@ -65,7 +65,7 @@ AGENT_TRIAL_DELAY = {
 }
 
 ALL_REPOS = ["humanize", "validators", "python-markdown", "more-itertools"]
-ALL_STYLES = ["original", "camelcase", "badnames", "formatting"]
+ALL_STYLES = ["original", "camelcase", "badnames", "formatting", "nodocstrings", "nodocs_full"]
 ALL_MODES = ["with_tests", "without_tests"]
 
 
@@ -116,15 +116,16 @@ def get_bug_ids_for_batch(
     style: str,
     limit: int,
     catalog_dir: str = "bugs_canonical",
+    bug_start: int = 0,
 ) -> list[str]:
-    """Load bug IDs from a catalog, limited to first `limit`."""
+    """Load bug IDs from a catalog, sliced as [bug_start:limit]."""
     catalog = DATA_DIR / catalog_dir / f"{repo}-{style}.json"
     if not catalog.exists():
         return []
     with open(catalog) as f:
         data = json.load(f)
     bug_ids = [b["bug_id"] for b in data.get("bugs", [])]
-    return bug_ids[:limit]
+    return bug_ids[bug_start:limit]
 
 
 def get_pending_bugs(
@@ -134,9 +135,10 @@ def get_pending_bugs(
     mode: str,
     limit: int,
     catalog_dir: str = "bugs_canonical",
+    bug_start: int = 0,
 ) -> list[str]:
     """Return bug IDs for this batch that haven't completed yet."""
-    all_bugs = get_bug_ids_for_batch(repo, style, limit, catalog_dir)
+    all_bugs = get_bug_ids_for_batch(repo, style, limit, catalog_dir, bug_start)
     done = state.get("completed_bugs", {}).get(mode, {})
     return [b for b in all_bugs if b not in done]
 
@@ -148,9 +150,10 @@ def is_batch_complete(
     mode: str,
     limit: int,
     catalog_dir: str = "bugs_canonical",
+    bug_start: int = 0,
 ) -> bool:
     """Check if all bugs in a batch are completed."""
-    return len(get_pending_bugs(state, repo, style, mode, limit, catalog_dir)) == 0
+    return len(get_pending_bugs(state, repo, style, mode, limit, catalog_dir, bug_start)) == 0
 
 
 def parse_result_file(result_file: Path) -> tuple[list[dict], bool]:
@@ -307,7 +310,15 @@ def main():
     parser.add_argument("--repos", nargs="+", default=ALL_REPOS, help="Repos to test")
     parser.add_argument("--styles", nargs="+", default=ALL_STYLES, help="Styles to test")
     parser.add_argument("--modes", nargs="+", default=ALL_MODES, help="Modes to test")
-    parser.add_argument("--limit", type=int, default=BUGS_PER_STYLE, help="Bugs per batch")
+    parser.add_argument(
+        "--limit", type=int, default=BUGS_PER_STYLE, help="End index for bug slice (default: 20)"
+    )
+    parser.add_argument(
+        "--bug-start",
+        type=int,
+        default=0,
+        help="Start index for bug slice (default: 0). Use 20 to skip bugs 001-020",
+    )
     parser.add_argument(
         "--catalog-dir",
         default="bugs_canonical",
@@ -358,7 +369,9 @@ def main():
 
     # Filter out fully completed batches
     pending = [
-        b for b in all_batches if not is_batch_complete(state, *b, args.limit, args.catalog_dir)
+        b
+        for b in all_batches
+        if not is_batch_complete(state, *b, args.limit, args.catalog_dir, args.bug_start)
     ]
 
     # Count total completed bugs across all modes
@@ -412,11 +425,15 @@ def main():
             print(f"\n  Repository: {repo}")
 
         # Determine which bugs still need running
-        remaining = get_pending_bugs(state, repo, style, mode, args.limit, args.catalog_dir)
+        remaining = get_pending_bugs(
+            state, repo, style, mode, args.limit, args.catalog_dir, args.bug_start
+        )
         if not remaining:
             continue
 
-        total_for_batch = len(get_bug_ids_for_batch(repo, style, args.limit, args.catalog_dir))
+        total_for_batch = len(
+            get_bug_ids_for_batch(repo, style, args.limit, args.catalog_dir, args.bug_start)
+        )
         already_done = total_for_batch - len(remaining)
 
         # Update state
@@ -461,7 +478,7 @@ def main():
             state["rate_limited_at"] = datetime.now().isoformat()
             state["current"] = None
             save_state(state, state_file, results_dir)
-            _print_status_summary(state, all_batches, args.limit, args.catalog_dir)
+            _print_status_summary(state, all_batches, args.limit, args.catalog_dir, args.bug_start)
             print("Run this script again after rate limit resets.")
             return
         elif parsed:
@@ -480,7 +497,7 @@ def main():
     state["current"] = None
     save_state(state, state_file, results_dir)
 
-    _print_status_summary(state, all_batches, args.limit, args.catalog_dir)
+    _print_status_summary(state, all_batches, args.limit, args.catalog_dir, args.bug_start)
     print("Benchmark complete!")
     print(f"Results saved to: {results_dir}")
 
@@ -489,10 +506,12 @@ def _count_done(state: dict) -> int:
     return sum(len(bugs) for bugs in state.get("completed_bugs", {}).values())
 
 
-def _print_status_summary(state: dict, all_batches: list, limit: int, catalog_dir: str):
+def _print_status_summary(
+    state: dict, all_batches: list, limit: int, catalog_dir: str, bug_start: int = 0
+):
     """Print a detailed status summary of benchmark progress."""
     total_done = _count_done(state)
-    total_expected = len(all_batches) * limit
+    total_expected = len(all_batches) * (limit - bug_start)
     pct = total_done * 100 / total_expected if total_expected else 0
 
     # Count by evaluation
@@ -508,7 +527,7 @@ def _print_status_summary(state: dict, all_batches: list, limit: int, catalog_di
 
     # Count completed batches
     completed_batches = sum(
-        1 for b in all_batches if is_batch_complete(state, *b, limit, catalog_dir)
+        1 for b in all_batches if is_batch_complete(state, *b, limit, catalog_dir, bug_start)
     )
 
     print()
