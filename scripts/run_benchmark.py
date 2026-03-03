@@ -45,6 +45,8 @@ import time
 from datetime import datetime
 from pathlib import Path
 
+from bugs.repo_config import REPO_CONFIGS
+
 # Configuration
 DATA_DIR = Path(
     os.environ.get(
@@ -64,7 +66,7 @@ AGENT_TRIAL_DELAY = {
     "gemini": 30,
 }
 
-ALL_REPOS = ["humanize", "validators", "python-markdown", "more-itertools"]
+ALL_REPOS = list(REPO_CONFIGS.keys())
 ALL_STYLES = ["original", "camelcase", "badnames", "formatting", "nodocstrings", "nodocs_full"]
 ALL_MODES = ["with_tests", "without_tests"]
 

@@ -43,7 +43,7 @@ from bugs.catalog import (
 )
 from bugs.injector import Injector, MutationSite, MutationType
 from bugs.mapper import MappedMutation, map_mutation
-from bugs.repo_config import get_config
+from bugs.repo_config import REPO_CONFIGS, get_config
 
 DATA_DIR = Path("/Users/yuan/stylebench-data")
 
@@ -73,7 +73,7 @@ NEW_TYPES = [
     MutationType.IDENTITY_IS,
 ]
 
-ALL_REPOS = ["humanize", "validators", "python-markdown", "more-itertools"]
+ALL_REPOS = list(REPO_CONFIGS.keys())
 ALL_STYLES = [
     "original",
     "camelcase",
