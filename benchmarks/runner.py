@@ -29,13 +29,19 @@ AGENT_REGISTRY = {
 }
 
 
-def get_agent(name: str, timeout: int = DEFAULT_TIMEOUT, model: str | None = None):
+def get_agent(
+    name: str,
+    timeout: int = DEFAULT_TIMEOUT,
+    model: str | None = None,
+    disallow_bash: bool = False,
+):
     """Get an agent by name.
 
     Args:
         name: Agent name (see AGENT_REGISTRY).
         timeout: Timeout in seconds.
         model: Model to use.
+        disallow_bash: If True, block Bash tool access (for one-shot mode).
 
     Returns:
         Agent instance.
@@ -56,6 +62,8 @@ def get_agent(name: str, timeout: int = DEFAULT_TIMEOUT, model: str | None = Non
         kwargs["timeout"] = timeout
     if "model" in params and model is not None:
         kwargs["model"] = model
+    if "disallow_bash" in params and disallow_bash:
+        kwargs["disallow_bash"] = True
 
     return cls(**kwargs)
 
@@ -150,6 +158,11 @@ def main():
         action="store_true",
         help="Suppress progress output",
     )
+    parser.add_argument(
+        "--oneshot",
+        action="store_true",
+        help="One-shot mode: agent can read test files but cannot run tests (disables Bash tool)",
+    )
 
     args = parser.parse_args()
 
@@ -216,6 +229,7 @@ def main():
         test_timeout=args.test_timeout,
         progress_callback=progress,
         delay_between_trials=args.trial_delay,
+        oneshot=args.oneshot,
     )
 
     # Save results

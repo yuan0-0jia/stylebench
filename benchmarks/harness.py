@@ -89,6 +89,7 @@ class BenchmarkHarness:
         bug_id: str,
         mode: str = "with_tests",
         test_timeout: int = 120,
+        oneshot: bool = False,
     ) -> TrialResult:
         """Run a single benchmark trial.
 
@@ -190,7 +191,7 @@ class BenchmarkHarness:
             )
 
             # Run the agent
-            fix_result = agent.fix_bug(context)
+            fix_result = agent.fix_bug(context, oneshot=oneshot)
 
             # Restore test access for evaluation
             if hidden_path is not None:
@@ -238,6 +239,7 @@ class BenchmarkHarness:
         test_timeout: int = 120,
         progress_callback: Callable | None = None,
         delay_between_trials: int = 0,
+        oneshot: bool = False,
     ) -> list[TrialResult]:
         """Run trials for multiple bugs.
 
@@ -265,7 +267,11 @@ class BenchmarkHarness:
                 progress_callback(i + 1, total, bug_id)
 
             result = self.run_trial(
-                agent=agent, bug_id=bug_id, mode=mode, test_timeout=test_timeout
+                agent=agent,
+                bug_id=bug_id,
+                mode=mode,
+                test_timeout=test_timeout,
+                oneshot=oneshot,
             )
 
             # If the agent was rate-limited, drop the result and stop the batch.

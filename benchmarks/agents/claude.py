@@ -18,8 +18,9 @@ class ClaudeAgent(Agent):
         timeout: int = DEFAULT_TIMEOUT,
         model: str | None = None,
         max_retries: int = 3,
+        disallow_bash: bool = False,
     ):
-        super().__init__(timeout=timeout, model=model)
+        super().__init__(timeout=timeout, model=model, disallow_bash=disallow_bash)
         self.max_retries = max_retries
 
     def _build_command(self, prompt: str, context: BugContext) -> list[str]:
@@ -28,6 +29,8 @@ class ClaudeAgent(Agent):
             "--print",
             "--dangerously-skip-permissions",
         ]
+        if self.disallow_bash:
+            cmd.extend(["--disallowedTools", "Bash"])
         if self.model:
             cmd.extend(["--model", self.model])
         cmd.extend(["--", prompt])

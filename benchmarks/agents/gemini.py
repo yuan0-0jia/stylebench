@@ -14,17 +14,20 @@ class GeminiAgent(Agent):
         timeout: int = DEFAULT_TIMEOUT,
         model: str | None = None,
         sandbox: bool = False,
+        disallow_bash: bool = False,
     ):
-        super().__init__(timeout=timeout, model=model)
+        super().__init__(timeout=timeout, model=model, disallow_bash=disallow_bash)
         self.sandbox = sandbox
 
     def _build_command(self, prompt: str, context: BugContext) -> list[str]:
-        cmd = [
-            "gemini",
-            "-y",
-            "-p",
-            prompt,
-        ]
+        cmd = ["gemini"]
+        if self.disallow_bash:
+            # auto_edit: auto-approve file edits only; shell commands need
+            # approval, which blocks them in headless (-p) mode.
+            cmd.extend(["--approval-mode", "auto_edit"])
+        else:
+            cmd.append("-y")
+        cmd.extend(["-p", prompt])
         if self.model:
             cmd.extend(["-m", self.model])
         if self.sandbox:

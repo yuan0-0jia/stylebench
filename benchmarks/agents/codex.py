@@ -13,10 +13,19 @@ class CodexAgent(Agent):
         cmd = [
             "codex",
             "exec",
-            "--dangerously-bypass-approvals-and-sandbox",
-            "--skip-git-repo-check",
-            prompt,
         ]
+        if self.disallow_bash:
+            # Allow trusted file operations (cat, sed, ls) but block
+            # untrusted commands (pytest, python) in non-interactive exec mode.
+            cmd.extend(["--sandbox", "workspace-write", "-a", "untrusted"])
+        else:
+            cmd.append("--dangerously-bypass-approvals-and-sandbox")
+        cmd.extend(
+            [
+                "--skip-git-repo-check",
+                prompt,
+            ]
+        )
         if self.model:
             cmd.extend(["--model", self.model])
         return cmd

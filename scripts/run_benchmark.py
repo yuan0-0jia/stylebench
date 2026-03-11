@@ -212,6 +212,7 @@ def run_batch(
     results_dir: Path,
     manifest_path: Path | None = None,
     catalog_dir: str = "bugs_canonical",
+    oneshot: bool = False,
 ) -> tuple[list[dict], bool]:
     """Run a batch for specific bug IDs.
 
@@ -257,6 +258,9 @@ def run_batch(
 
     if manifest_path:
         cmd.extend(["--manifest", str(manifest_path)])
+
+    if oneshot:
+        cmd.append("--oneshot")
 
     cmd.extend(["--bugs", *bug_ids])
 
@@ -331,6 +335,11 @@ def main():
         type=str,
         default=None,
         help="Path to trial manifest JSON (for controlled runs with pre-captured test output)",
+    )
+    parser.add_argument(
+        "--oneshot",
+        action="store_true",
+        help="One-shot mode: agent can read test files but cannot run tests (disables Bash tool)",
     )
     parser.add_argument(
         "--yes",
@@ -468,6 +477,7 @@ def main():
             results_dir,
             manifest_path=Path(args.manifest) if args.manifest else None,
             catalog_dir=args.catalog_dir,
+            oneshot=args.oneshot,
         )
 
         # Record the successful results (even if batch was partially rate-limited)

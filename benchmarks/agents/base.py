@@ -232,14 +232,20 @@ class Agent(ABC):
         self,
         timeout: int = DEFAULT_TIMEOUT,
         model: str | None = None,
+        disallow_bash: bool = False,
     ):
         self.timeout = timeout
         self.model = model
+        self.disallow_bash = disallow_bash
 
-    def build_prompt(self, context: BugContext) -> str:
+    def build_prompt(self, context: BugContext, oneshot: bool = False) -> str:
         """Build the standard prompt for fixing a bug.
 
         All agents receive the same prompt to ensure fair comparison.
+
+        Args:
+            context: Bug context with repo path, test output, mode, etc.
+            oneshot: If True, instruct the agent not to run tests (single-pass fix).
         """
         prompt = f"""The tests in this repository are failing.
 Find and fix the bug.
@@ -263,6 +269,9 @@ Instructions:
             prompt += """
 - You may read test files to understand expected behavior
 - But do NOT modify test files"""
+            if oneshot:
+                prompt += """
+- Do not attempt to run tests; make your best fix and stop"""
 
         return prompt
 
@@ -283,10 +292,10 @@ Instructions:
         """Run the agent subprocess. Override for retry logic etc."""
         return _run_popen_with_timeout(cmd, context.repo_path, self._get_env(), self.timeout)
 
-    def fix_bug(self, context: BugContext) -> FixResult:
+    def fix_bug(self, context: BugContext, oneshot: bool = False) -> FixResult:
         """Attempt to fix a bug by running the agent CLI."""
         start_time = time.time()
-        prompt = self.build_prompt(context)
+        prompt = self.build_prompt(context, oneshot=oneshot)
         cmd = self._build_command(prompt, context)
 
         try:
