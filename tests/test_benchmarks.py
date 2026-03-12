@@ -646,7 +646,7 @@ class TestBenchmarkHarness:
             def _build_command(self, prompt, context):
                 return ["echo", "noop"]
 
-            def fix_bug(self, context: BugContext) -> FixResult:
+            def fix_bug(self, context: BugContext, oneshot: bool = False) -> FixResult:
                 return FixResult(success=True)
 
         agent = DummyAgent()
@@ -740,7 +740,7 @@ class TestRateLimitWorkflow:
             def _build_command(self, prompt, context):
                 return ["echo", "noop"]
 
-            def fix_bug(self, context: BugContext) -> FixResult:
+            def fix_bug(self, context: BugContext, oneshot: bool = False) -> FixResult:
                 nonlocal call_count
                 call_count += 1
                 if call_count == 1:
